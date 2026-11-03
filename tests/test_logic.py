@@ -29,8 +29,8 @@ class Col:
             codes[cid] = stage if plan.enable else stage + SUSPENDED_OFFSET
         self.snap = self.snap.with_codes(codes)
 
-    def toggle(self, node, vid="amboss"):
-        plan = logic.plan_toggle(self.view(vid), node, self.codes)
+    def toggle(self, node, vid="amboss", protect=False):
+        plan = logic.plan_toggle(self.view(vid), node, self.codes, protect)
         self.apply(plan)
         return plan
 
@@ -84,7 +84,7 @@ def test_on_wins_over_other_switched_on_node():
     col = Col(b)
     col.toggle(col.find("Infektiologie"))
     col.toggle(col.find("Pneumologie"))
-    plan = col.toggle(col.find("Pneumologie"))
+    plan = col.toggle(col.find("Pneumologie"), protect=True)
     assert not plan.enable
     assert plan.kept == len(ids["tb"])
     assert not set(ids["tb"]) & set(plan.card_ids)
@@ -98,11 +98,11 @@ def test_on_wins_ignores_ancestors_and_descendants():
     col = Col(b)
     col.toggle(col.find("Innere Medizin"))
     # Ausschalten eines Kindes: eingeschalteter Elternknoten schützt nicht
-    plan = col.toggle(col.find("Lungenembolie (Lungenarterienembolie, LAE)"))
+    plan = col.toggle(col.find("Lungenembolie (Lungenarterienembolie, LAE)"), protect=True)
     assert plan.card_ids == ids["lae"] and plan.kept == 0
     # Ausschalten des Elternknotens: eingeschaltete Kinder schützen nicht
     col.toggle(col.find("Innere Medizin"))
-    plan = col.toggle(col.find("Innere Medizin"))
+    plan = col.toggle(col.find("Innere Medizin"), protect=True)
     assert not plan.enable and plan.kept == 0
     assert col.find("Innere Medizin").counts.active == 0
 
@@ -116,7 +116,7 @@ def test_round_trip_restores_state():
     # Tuberkulose unter Infektiologie/Radiologie ist jetzt rein abgeleitet „an“
     tb_inf = [n for n in col.view().nodes if n.name == "Tuberkulose" and n.parent.name == "Bakterielle Erkrankungen"][0]
     assert logic.node_state(tb_inf.counts) == logic.STATE_ON
-    plan = col.toggle(col.find("Innere Medizin"))
+    plan = col.toggle(col.find("Innere Medizin"), protect=True)
     assert plan.kept == 0
     assert col.codes == before
 
@@ -128,7 +128,7 @@ def test_partially_on_node_does_not_protect():
     col = Col(b)
     col.apply(logic.plan_enable(col.find("A"), col.codes))
     # B ist zu 25 % aktiv -> nicht eingeschaltet -> schützt die geteilte Karte nicht
-    plan = col.toggle(col.find("A"))
+    plan = col.toggle(col.find("A"), protect=True)
     assert plan.card_ids == shared and plan.kept == 0
     assert other
 
@@ -142,8 +142,23 @@ def test_switched_on_at_90_percent_protects():
     col.apply(logic.plan_enable(col.find("B"), col.codes))
     col.apply(logic.Plan(False, late))
     assert logic.node_state(col.find("B").counts) == logic.STATE_PARTIAL
-    plan = col.toggle(col.find("A"))  # A ist an (geteilte Karte aktiv) -> ausschalten
+    plan = col.toggle(col.find("A"), protect=True)  # A ist an (geteilte Karte aktiv) -> ausschalten
     assert not plan.enable and plan.card_ids == [] and plan.kept == len(shared)
+
+
+def test_disable_parent_suspends_whole_subtree_by_default():
+    """Oberthema aus = alles darunter aus, auch Karten, die in anderen aktiven Fächern hängen."""
+    b, ids = sample()
+    col = Col(b)
+    col.toggle(col.find("Infektiologie"))
+    col.toggle(col.find("Innere Medizin"))
+    plan = col.toggle(col.find("Innere Medizin"))
+    assert not plan.enable and plan.kept == 0
+    im = col.find("Innere Medizin")
+    assert im.counts.active == 0
+    assert all(n.counts.active == 0 for n in col.view().nodes if im.is_ancestor_of(n))
+    # Ein weiterer Klick schaltet nicht versehentlich wieder alles an
+    assert logic.node_state(col.find("Innere Medizin").counts) == logic.STATE_OFF
 
 
 def test_toggle_partial_enables():

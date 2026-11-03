@@ -64,9 +64,13 @@ def plan_enable(node: Node, codes: Dict[int, int]) -> Plan:
     return Plan(True, ids, new)
 
 
-def plan_disable(view: View, node: Node, codes: Dict[int, int]) -> Plan:
-    """Alle aktiven Karten des Knotens aussetzen – außer sie liegen in einem anderen
-    eingeschalteten Knoten der Ansicht („an gewinnt“).
+def plan_disable(view: View, node: Node, codes: Dict[int, int], protect_overlap: bool = False) -> Plan:
+    """Alle aktiven Karten des Knotens (samt Teilbaum) aussetzen.
+
+    Mit `protect_overlap` („an gewinnt“, Option `an_gewinnt`) bleiben Karten aktiv, die
+    auch in einem anderen eingeschalteten Knoten der Ansicht liegen. Standard ist aus:
+    Sonst bleibt nach „Fach aus“ oft ein Rest aktiv, das Fach steht auf ◐, und der
+    nächste Klick aktiviert es wieder (siehe docs/DECISIONS.md).
 
     „Anderer eingeschalteter Knoten“ heißt: weder Vorfahr noch Nachfahr, und ≥ 90 % seiner
     Karten *außerhalb* des auszuschaltenden Knotens sind aktiv. Ein Knoten, dessen Karten
@@ -77,7 +81,7 @@ def plan_disable(view: View, node: Node, codes: Dict[int, int]) -> Plan:
     inside = set(node.cards)
     candidates = {cid for cid in inside if not is_suspended_code(codes[cid])}
     protected: Set[int] = set()
-    if candidates:
+    if candidates and protect_overlap:
         # Präorder-Lauf; schützt ein unabhängiger Elternknoten, deckt er seinen
         # Teilbaum ab und die Kinder müssen nicht mehr geprüft werden.
         covered: Set[Tuple[str, ...]] = set()
@@ -110,10 +114,10 @@ def plan_disable(view: View, node: Node, codes: Dict[int, int]) -> Plan:
     return Plan(False, ids, kept=len(protected))
 
 
-def plan_toggle(view: View, node: Node, codes: Dict[int, int]) -> Plan:
+def plan_toggle(view: View, node: Node, codes: Dict[int, int], protect_overlap: bool = False) -> Plan:
     if wants_enable(node.counts):
         return plan_enable(node, codes)
-    return plan_disable(view, node, codes)
+    return plan_disable(view, node, codes, protect_overlap)
 
 
 def stragglers(view: View, codes: Dict[int, int]) -> Tuple[int, List[int]]:

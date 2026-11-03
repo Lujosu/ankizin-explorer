@@ -183,7 +183,7 @@ def test_window_tree_detail_search(window):
     key = next(k for k in w.items if k[-1] == "pneumologie")
     w.navigate(key)
     assert w.title.text() == "Pneumologie"
-    assert "Innere Medizin" in w.crumbs.text()
+    assert "Innere Medizin" in w.crumbs.toolTip()
     assert w.tiles_layout.count() == 2  # Infektiöse Atemwegserkrankungen, Lungengefäßerkrankungen
 
 
@@ -325,3 +325,33 @@ def test_integration_setup(monkeypatch):
     assert registered == {}
     main.deleteLater()
     app.processEvents()
+
+
+def test_wrap_elide_keeps_spaces_and_breaks_long_words():
+    qt = pytest.importorskip("aqt.qt")
+    app = qt.QApplication.instance() or qt.QApplication([])  # noqa: F841 - muss leben
+    from ankizin_explorer.ui.widgets import wrap_elide
+
+    fm = qt.QFontMetrics(qt.QFont())
+    assert wrap_elide("Kurz", fm, 140, 2) == ["Kurz"]
+    lines = wrap_elide("Kinder- und Jugendpsychiatrie", fm, fm.horizontalAdvance("Jugendpsychiatrie") + 2, 2)
+    assert lines == ["Kinder- und", "Jugendpsychiatrie"]
+    long_word = "Nebenniereninsuffizienzausdruck" * 3
+    lines = wrap_elide(long_word, fm, 100, 2)
+    assert len(lines) == 2 and lines[1].endswith("…")
+    assert all(fm.horizontalAdvance(line) <= 100 for line in lines)
+
+
+def test_disable_partial_parent_from_header(window):
+    """◐-Oberthema über „Aussetzen“ im Kopf: der ganze Teilbaum geht aus, auch geteilte Karten."""
+    w = window
+    key = next(k for k in w.items if k[-1] == "pneumologie")
+    w.navigate(key)
+    w.toggle(w.current_node())  # an; Tuberkulose ist dadurch auch unter Infektiologie aktiv
+    inf = next(k for k in w.items if k[-1] == "infektiologie")
+    w.navigate(inf)
+    assert w.current_node().counts.active and w.off_btn.isVisibleTo(w)
+    w.toggle(w.current_node(), False)
+    assert w.current_node().counts.active == 0
+    assert all(w._node(k).counts.active == 0 for k in w.items if k[: len(inf)] == inf)
+    assert not w.off_btn.isVisibleTo(w) and w.toggle_btn.text() == "Aktivieren"

@@ -4,6 +4,11 @@ Ein Anki-Addon, das das [AnKIzin](https://ankizin.de)-Deck übersichtlich nach T
 schaltbar macht: AMBOSS-Bibliotheksstruktur als Baum, Lernstand pro Thema, ein Klick zum
 Aktivieren oder Aussetzen – statt sich durch den Tag-Explorer zu klicken.
 
+> **Vibecoded.** Dieses Addon wurde vollständig mit KI (Claude Code) geschrieben: Design im
+> Gespräch erarbeitet, Code, Tests und Doku von der KI erzeugt, vom Owner im Alltag getestet.
+> Es gibt keine Gewähr – vor dem ersten Schalten lohnt ein Backup (Anki legt ohnehin
+> automatisch welche an, und jeder Schaltvorgang lässt sich mit Ctrl/Cmd+Z zurücknehmen).
+
 > Status: v1. Design siehe [docs/SPEC.md](docs/SPEC.md), Umsetzungsentscheidungen in
 > [docs/DECISIONS.md](docs/DECISIONS.md).
 
@@ -14,8 +19,8 @@ Aktivieren oder Aussetzen – statt sich durch den Tag-Explorer zu klicken.
 - Pro Thema: Ring mit Lernstand (neu / gesehen / gefestigt) und Kartenzahlen
 - Übersicht eines Themas mit allen Unterblöcken als Kacheln
 - Aktivieren/Aussetzen ganzer Themen, Rückgängig mit Ctrl/Cmd+Z
-- „An gewinnt“: Beim Aussetzen bleiben Karten aktiv, die auch in einem anderen aktiven Thema
-  liegen
+- Aussetzen eines Oberthemas setzt alles darunter aus (optional „an gewinnt“: Karten, die
+  auch in einem anderen aktiven Thema liegen, bleiben aktiv – Option `an_gewinnt`)
 - Sicherheitsabfrage ab 500 Karten mit Schätzung, wie viele Tage die neuen Karten bei deinem
   Tageslimit brauchen
 - Hinweis auf neue ausgesetzte Karten in aktiven Themen nach AnKIzin-Updates
@@ -24,10 +29,11 @@ Aktivieren oder Aussetzen – statt sich durch den Tag-Explorer zu klicken.
 
 ## Benutzung
 
-- **Extras → AnKIzin Explorer** (Kürzel Ctrl+Alt+A, am Mac ⌘⌥A) oder der Link **AnKIzin** in
-  der oberen Leiste.
+- **Extras → AnKIzin Explorer** (Kürzel Ctrl+Alt+A, am Mac ⌘⌥A), der Link **AnKIzin** in
+  der oberen Leiste oder der Knopf **„AnKIzin Explorer öffnen“** unter der Deckliste.
 - Checkbox im Baum oder Knopf in der Übersicht: ☐/◐ → aktivieren, ☑ → aussetzen. Ein
-  Oberthema schaltet seinen ganzen Teilbaum.
+  Oberthema schaltet seinen ganzen Teilbaum. Bei ◐ gibt es im Kopf und im Rechtsklick-Menü
+  zusätzlich „Aussetzen“.
 - Aussetzen behält den Lernstand; Deck-Optionen werden nie verändert, das Tageslimit für neue
   Karten regelt weiter Anki.
 - Rechtsklick auf ein Thema: „Im Browser zeigen“.
@@ -36,10 +42,14 @@ Aktivieren oder Aussetzen – statt sich durch den Tag-Explorer zu klicken.
 
 ### Mit Onigiri
 
-Externe Einträge sind in Onigiri zunächst archiviert. In Onigiris Einstellungen beim
-Seitenleisten-Layout den Eintrag **„AnKIzin Explorer“** (mit Baum-Symbol) aktivieren. Onigiri
-übernimmt außerdem den Toolbar-Link „AnKIzin“ als eigenen Eintrag – beide öffnen dasselbe
-Fenster, einer reicht.
+Externe Einträge sind in Onigiri zunächst archiviert und müssen einmal in Onigiris
+Einstellungen aktiviert werden:
+
+- **Seitenleiste:** beim Seitenleisten-Layout den Eintrag **„AnKIzin Explorer“** (mit
+  Baum-Symbol) aus den archivierten Einträgen holen. Onigiri übernimmt außerdem den
+  Toolbar-Link „AnKIzin“ als eigenen Eintrag – beide öffnen dasselbe Fenster, einer reicht.
+- **Startseite:** Der Knopf unter der Deckliste erscheint in Onigiri als externes Widget
+  und lässt sich dort im Widget-Layout platzieren.
 
 ## Entwicklung
 
@@ -66,4 +76,5 @@ Fenster, einer reicht.
 
 ## Lizenz
 
-AGPL-3.0, siehe [LICENSE](LICENSE).
+Gemeinfrei ([The Unlicense](LICENSE)): Jede und jeder darf den Code ohne Bedingungen nutzen,
+verändern, weitergeben und verkaufen – auch ohne Namensnennung.

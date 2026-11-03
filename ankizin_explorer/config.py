@@ -7,8 +7,15 @@ from typing import Any, Dict
 ADDON = __name__.split(".")[0]
 KEY_VORKLINIK = "vorklinik_anzeigen"
 KEY_SHORTCUT = "tastenkuerzel"
+KEY_ON_WINS = "an_gewinnt"
+KEY_HOME_BUTTON = "knopf_startseite"
 # Ctrl+Shift+E (SPEC-Vorschlag) ist in Anki schon „Exportieren“
-DEFAULTS: Dict[str, Any] = {KEY_VORKLINIK: False, KEY_SHORTCUT: "Ctrl+Alt+A"}
+DEFAULTS: Dict[str, Any] = {
+    KEY_VORKLINIK: False,
+    KEY_SHORTCUT: "Ctrl+Alt+A",
+    KEY_ON_WINS: False,
+    KEY_HOME_BUTTON: True,
+}
 
 
 def _manager():
@@ -30,6 +37,14 @@ def get() -> Dict[str, Any]:
 
 def show_vorklinik() -> bool:
     return bool(get().get(KEY_VORKLINIK, False))
+
+
+def on_wins() -> bool:
+    return bool(get().get(KEY_ON_WINS, False))
+
+
+def home_button() -> bool:
+    return bool(get().get(KEY_HOME_BUTTON, True))
 
 
 def shortcut() -> str:

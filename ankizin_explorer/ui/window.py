@@ -19,6 +19,7 @@ from aqt.qt import (
     QPushButton,
     QScrollArea,
     QShortcut,
+    QSizePolicy,
     QSplitter,
     QStackedWidget,
     QTabBar,
@@ -44,7 +45,18 @@ from ..text import (
     sorted_children,
 )
 from .theme import Palette
-from .widgets import ROLE_COUNTS, RingDelegate, RingWidget, FlowLayout, Tile, status_text, toggle_text
+from .widgets import (
+    ROLE_COUNTS,
+    CrumbLabel,
+    ElidedLabel,
+    FlowLayout,
+    RingDelegate,
+    RingWidget,
+    Tile,
+    ring_column_width,
+    status_text,
+    toggle_text,
+)
 
 GEOM_KEY = "ankizin_explorer"
 ROLE_KEY = Qt.ItemDataRole.UserRole
@@ -97,6 +109,7 @@ class ExplorerWindow(QWidget):
             self.resize(1100, 720)
             restoreGeom(self, GEOM_KEY)
         restoreSplitter(self.splitter, GEOM_KEY)
+        self.tree.setFocus()
         self.reload("full")
 
     # --- Aufbau ----------------------------------------------------------------
@@ -114,7 +127,9 @@ class ExplorerWindow(QWidget):
         self.banner_label = QLabel()
         self.banner_label.setWordWrap(True)
         bl.addWidget(self.banner_label, 1)
-        self.banner_btn = QPushButton("Aktivieren")
+        self.banner_btn = QPushButton("Nachzügler aktivieren")
+        # Kein Startfokus: ein versehentliches Leerzeichen soll nichts schalten
+        self.banner_btn.setFocusPolicy(Qt.FocusPolicy.TabFocus)
         self.banner_btn.clicked.connect(self._enable_stragglers)
         bl.addWidget(self.banner_btn)
         self.banner.hide()
@@ -184,7 +199,8 @@ class ExplorerWindow(QWidget):
         header.setStretchLastSection(False)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
-        header.resizeSection(1, 120)
+        header.resizeSection(1, ring_column_width(self.tree.fontMetrics()))
+        self.tree.setIndentation(16)
         self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tree.customContextMenuRequested.connect(self._tree_menu)
         self.tree.itemChanged.connect(self._on_item_changed)
@@ -192,6 +208,7 @@ class ExplorerWindow(QWidget):
         self.tree.itemExpanded.connect(lambda it: self._remember_expand(it, True))
         self.tree.itemCollapsed.connect(lambda it: self._remember_expand(it, False))
         ll.addWidget(self.tree, 1)
+        left.setMinimumWidth(280)
         self.splitter.addWidget(left)
 
         right = QWidget()
@@ -208,21 +225,20 @@ class ExplorerWindow(QWidget):
         hl.addWidget(self.big_ring, 0, Qt.AlignmentFlag.AlignTop)
         info = QVBoxLayout()
         info.setSpacing(4)
-        self.crumbs = QLabel()
+        # Feste Zeilenzahl je Element, damit der Kopf beim Navigieren nicht springt
+        self.crumbs = CrumbLabel()
         self.crumbs.setObjectName("azSubtle")
-        self.crumbs.setWordWrap(True)
-        self.crumbs.setTextFormat(Qt.TextFormat.RichText)
         self.crumbs.linkActivated.connect(self._on_crumb)
         info.addWidget(self.crumbs)
-        self.title = QLabel()
+        self.title = ElidedLabel("", lines=2)
         self.title.setObjectName("azTitle")
-        self.title.setWordWrap(True)
         info.addWidget(self.title)
         self.summary = QLabel()
-        self.summary.setWordWrap(True)
+        self.summary.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         info.addWidget(self.summary)
         self.status = QLabel()
         self.status.setObjectName("azSubtle")
+        self.status.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         info.addWidget(self.status)
         hl.addLayout(info, 1)
         btns = QVBoxLayout()
@@ -231,6 +247,11 @@ class ExplorerWindow(QWidget):
         self.toggle_btn.setAutoDefault(False)
         self.toggle_btn.clicked.connect(lambda: self.toggle(self.current_node()))
         btns.addWidget(self.toggle_btn)
+        # Bei ◐ heißt der Hauptknopf „Aktivieren“; Aussetzen geht dann über diesen Knopf
+        self.off_btn = QPushButton("Aussetzen")
+        self.off_btn.setAutoDefault(False)
+        self.off_btn.clicked.connect(lambda: self.toggle(self.current_node(), False))
+        btns.addWidget(self.off_btn)
         self.browse_btn = QPushButton("Im Browser zeigen")
         self.browse_btn.clicked.connect(lambda: self.show_in_browser(self.current_node()))
         btns.addWidget(self.browse_btn)
@@ -248,6 +269,8 @@ class ExplorerWindow(QWidget):
         self.splitter.setStretchFactor(0, 2)
         self.splitter.setStretchFactor(1, 3)
         self.splitter.setSizes([420, 640])
+        self.splitter.setChildrenCollapsible(False)
+        right.setMinimumWidth(320)
 
         # Cmd/Ctrl+Z macht wie im Hauptfenster den letzten Schritt rückgängig
         undo_sc = QShortcut(QKeySequence(QKeySequence.StandardKey.Undo), self)
@@ -266,7 +289,11 @@ class ExplorerWindow(QWidget):
 
     def apply_theme(self) -> None:
         self.pal = Palette()
-        self.setStyleSheet(self.pal.stylesheet())
+        # Nicht aufs ganze Fenster setzen: Ein Stylesheet auf einem Vorfahren schickt auch
+        # den Baum durch Qts langsamen Stylesheet-Pfad (gemessen ~40 % pro Scroll-Frame).
+        sheet = self.pal.stylesheet()
+        for widget in (self.banner, self.header, self.search, self.tiles_area):
+            widget.setStyleSheet(sheet)
         if self.snapshot is not None:
             self.tree.viewport().update()
             self._show_detail()
@@ -493,13 +520,10 @@ class ExplorerWindow(QWidget):
         self.big_ring.set_counts(c, self.pal)
         crumbs = [view.root] + node.path()[:-1]
         if node is view.root:
-            self.crumbs.setText("")
+            self.crumbs.set_parts([])
             self.crumbs.hide()
         else:
-            links = " › ".join(
-                f'<a href="{i}" style="text-decoration:none">{_esc(n.name)}</a>' for i, n in enumerate(crumbs)
-            )
-            self.crumbs.setText(links)
+            self.crumbs.set_parts([n.name for n in crumbs])
             self.crumbs.show()
         self._crumb_nodes = crumbs
         self.title.setText(node.name)
@@ -510,6 +534,7 @@ class ExplorerWindow(QWidget):
         self.summary.setToolTip(counts_tooltip(c))
         self.status.setText(f"{status_text(c)} · {fmt_int(c.active)} aktiv, {fmt_int(c.suspended)} ausgesetzt")
         self.toggle_btn.setText(toggle_text(c))
+        self.off_btn.setVisible(logic.node_state(c) == logic.STATE_PARTIAL)
         self._fill_tiles(node)
 
     def _fill_tiles(self, node: Node) -> None:
@@ -520,6 +545,8 @@ class ExplorerWindow(QWidget):
         if not children:
             empty = QLabel("Keine Unterthemen – das ist ein einzelnes Thema.")
             empty.setObjectName("azSubtle")
+            empty.setWordWrap(True)
+            empty.setProperty("fullRow", True)
             self.tiles_layout.addWidget(empty)
         for child in children:
             tile = Tile(
@@ -628,14 +655,20 @@ class ExplorerWindow(QWidget):
             self._updating = False
         self.toggle(node)
 
-    def toggle(self, node: Optional[Node]) -> None:
+    def toggle(self, node: Optional[Node], enable: Optional[bool] = None) -> None:
+        """Schalten; ohne `enable` entscheidet der Zustand (☑ → aus, sonst an)."""
         view = self.current_view()
         if node is None or view is None:
             return
         if self._loading or self._op_running:
             tooltip("Einen Moment, die Zahlen werden gerade aktualisiert …", parent=self)
             return
-        plan = logic.plan_toggle(view, node, self.snapshot.codes)
+        if enable is None:
+            enable = logic.wants_enable(node.counts)
+        if enable:
+            plan = logic.plan_enable(node, self.snapshot.codes)
+        else:
+            plan = logic.plan_disable(view, node, self.snapshot.codes, config.on_wins())
         self.run_plan(plan, node.name)
 
     def run_plan(self, plan: logic.Plan, name: str) -> None:
@@ -726,7 +759,11 @@ class ExplorerWindow(QWidget):
         if node is None:
             return
         menu = QMenu(self)
-        menu.addAction(toggle_text(node.counts), lambda: self.toggle(node))
+        state = logic.node_state(node.counts)
+        if state != logic.STATE_ON:
+            menu.addAction("Aktivieren", lambda: self.toggle(node, True))
+        if state != logic.STATE_OFF:
+            menu.addAction("Aussetzen", lambda: self.toggle(node, False))
         menu.addAction("Im Browser zeigen", lambda: self.show_in_browser(node))
         if node.parent is not None:
             menu.addAction("Öffnen", lambda: self.navigate(node.key))
@@ -756,6 +793,3 @@ class ExplorerWindow(QWidget):
         saveSplitter(self.splitter, GEOM_KEY)
         super().closeEvent(event)
 
-
-def _esc(s: str) -> str:
-    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")

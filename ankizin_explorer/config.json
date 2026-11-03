@@ -1,4 +1,6 @@
 {
+    "an_gewinnt": false,
+    "knopf_startseite": true,
     "tastenkuerzel": "Ctrl+Alt+A",
     "vorklinik_anzeigen": false
 }

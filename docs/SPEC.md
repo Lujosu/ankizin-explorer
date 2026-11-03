@@ -54,7 +54,7 @@ Die AMBOSS-Ansicht zeigt ausschließlich die Teilbäume aus 2.1.
 |---|---|
 | Was heißt „an“ | Karten des Themas werden **unsuspended**. Keine gefilterten Decks. |
 | Was heißt „aus“ | **Alle** Karten des Themas werden suspended, auch bereits gelernte. Scheduling-Daten bleiben erhalten. |
-| Überlappung | **„An gewinnt“**: Beim Ausschalten bleibt eine Karte aktiv, wenn sie in einem anderen *eingeschalteten* Knoten der aktuellen Ansicht liegt. |
+| Überlappung | Beim Ausschalten wird der **ganze Teilbaum** ausgesetzt, auch Karten, die zusätzlich in anderen Themen hängen (geändert nach dem ersten Test, siehe DECISIONS 1). „An gewinnt“ ist als Option `an_gewinnt` erhalten. |
 | Zustand | **Kein eigenes Gedächtnis.** Zustand eines Knotens ergibt sich nur aus den Karten: ☐ aus (0 % aktiv), ◐ teilweise, ☑ an (100 % aktiv). |
 | Eingeschaltet für „An gewinnt“ | Ein Knoten gilt als eingeschaltet, wenn ≥ 90 % seiner Karten aktiv sind (gleiche Schwelle wie 3.1). |
 | Oberthemen | Checkbox auf einem Oberknoten schaltet den ganzen Teilbaum. |
@@ -112,6 +112,8 @@ Darstellung: kleiner **Ring mit 3 Farben** pro Zeile/Kachel, daneben „gesehen/
   - Menüeintrag unter **Extras → AnKIzin Explorer** mit Tastenkürzel (Vorschlag:
     `Ctrl+Shift+E`, vorher auf Konflikte prüfen).
   - Link in der oberen Toolbar (`gui_hooks.top_toolbar_did_init_links`).
+  - Knopf unter der Deckliste (`gui_hooks.deck_browser_will_render_content`), abschaltbar
+    über `knopf_startseite`.
 - **Zusätzlich, wenn Onigiri installiert ist:** Eintrag in der Onigiri-Seitenleiste über
   dessen öffentliche API:
   ```python
@@ -155,8 +157,7 @@ Darstellung: kleiner **Ring mit 3 Farben** pro Zeile/Kachel, daneben „gesehen/
 
 ## 9. Veröffentlichung
 
-- Öffentliches GitHub-Repo, Lizenz AGPL-3.0 (wie Anki selbst üblich) – oder MIT, falls
-  vom Owner gewünscht.
+- Öffentliches GitHub-Repo, gemeinfrei (The Unlicense) auf Wunsch des Owners.
 - Build-Skript erzeugt `dist/ankizin_explorer.ankiaddon` (Zip des Pakets ohne
   `__pycache__`, ohne `meta.json`).
 - Upload auf AnkiWeb macht der Owner manuell.

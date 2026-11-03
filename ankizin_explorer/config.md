@@ -6,3 +6,13 @@ Lässt sich auch direkt im Fenster über „Vorklinik anzeigen“ umschalten.
 **tastenkuerzel** (Standard: `"Ctrl+Alt+A"`, auf dem Mac ⌘⌥A)
 Kürzel für *Extras → AnKIzin Explorer*. Leer lassen (`""`) für kein Kürzel. Ist das Kürzel
 schon belegt, wird es nicht gesetzt. Änderungen wirken nach einem Neustart von Anki.
+
+**an_gewinnt** (Standard: `false`)
+Beim Aussetzen eines Themas wird immer der ganze Teilbaum ausgesetzt. Mit `true` bleiben
+Karten aktiv, die zusätzlich in einem anderen, unabhängig eingeschalteten Thema hängen
+(z. B. Tuberkulose unter Infektiologie, wenn man Innere Medizin aussetzt). Dann kann ein
+Thema nach dem Aussetzen auf „teilweise“ stehen bleiben.
+
+**knopf_startseite** (Standard: `true`)
+Zeigt unter der Deckliste einen Knopf „AnKIzin Explorer öffnen“. Mit Onigiri erscheint er
+als externes Widget, das man in Onigiris Einstellungen erst aktivieren muss.

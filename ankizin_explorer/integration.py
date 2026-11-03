@@ -103,6 +103,20 @@ def _on_js_message(handled, message, _context):
     return (True, None)
 
 
+def _home_button(_deck_browser, content) -> None:
+    # Knopf unter der Deckliste. Onigiri übernimmt solche Inhalte als externes Widget
+    # für seine Startseite (dort wie die Seitenleiste erst in den Einstellungen aktivieren).
+    if config.home_button():
+        content.stats += HOME_HTML
+
+
+HOME_HTML = (
+    '<div id="ankizin-explorer-home" style="margin:14px auto 4px;text-align:center">'
+    f"<button onclick=\"pycmd('{COMMAND}');return false;\" title=\"Themen von AnKIzin an- und ausschalten\">"
+    f"{LABEL} öffnen</button></div>"
+)
+
+
 # --- Onigiri ------------------------------------------------------------------------
 
 
@@ -168,6 +182,7 @@ def _on_config_updated(_conf) -> None:
 def setup() -> None:
     _add_menu()
     gui_hooks.top_toolbar_did_init_links.append(_toolbar_links)
+    gui_hooks.deck_browser_will_render_content.append(_home_button)
     gui_hooks.webview_did_receive_js_message.append(_on_js_message)
     gui_hooks.profile_did_open.append(_register_onigiri)
     gui_hooks.profile_will_close.append(_close_window)

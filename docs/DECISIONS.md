@@ -5,21 +5,19 @@ Jeweils: Entscheidung – Begründung. Abweichungen von der SPEC sind als **Abwe
 
 ## Logik
 
-1. **„An gewinnt“: Ein anderer Knoten schützt nur, wenn er auch außerhalb des
-   auszuschaltenden Knotens eingeschaltet ist.** (Präzisierung von SPEC 3, bitte bestätigen)
-   Beim Ausschalten von Knoten N bleibt eine Karte aktiv, wenn sie in einem Knoten M liegt,
-   der weder Vorfahr noch Nachfahr von N ist und bei dem ≥ 90 % der Karten *außerhalb von N*
-   aktiv sind.
-   *Warum:* Wörtlich genommen („M ist ≥ 90 % aktiv“) wird jeder Artikel, der zusätzlich unter
-   einem anderen Fach hängt, durch das Einschalten von N selbst „an“ – und schützt dann beim
-   Ausschalten von N seine Karten. Gemessen an einer echten AnKIzin-Sammlung: „Innere Medizin
-   an, dann aus“ hätte 18.422 von 20.064 Karten aktiv gelassen (Pharmakologie 2.438 von
-   3.162, Neurologie 3.877 von 4.962). Mit der Präzisierung stellt An/Aus den alten Zustand
-   wieder her, und ein wirklich separat eingeschaltetes Thema (z. B. Infektiologie) behält
-   seine gemeinsamen Karten mit Innere Medizin weiterhin. Ein Knoten, dessen Karten alle in N
-   liegen, schützt nie.
+1. **Aussetzen = ganzer Teilbaum; „an gewinnt“ nur noch als Option** (`an_gewinnt`, Standard
+   aus). **Abweichung** von SPEC 3 nach dem ersten Test im Alltag.
+   *Warum:* Auf einer echten Sammlung mit schon aktiven Themen ließ „Intensivmedizin aus“ 559
+   von 5.354 Karten aktiv, weil die Artikel auch unter anderen, aktiven Fächern hängen. Das
+   Fach stand danach auf ◐, und der nächste Klick *aktivierte* es wieder – man kam nie auf
+   „aus“. Der Owner erwartet: Oberthema aus = alles darunter aus.
+   Mit der Option gilt die frühere Regel: Eine Karte bleibt aktiv, wenn sie in einem Knoten M
+   liegt, der weder Vorfahr noch Nachfahr ist und bei dem ≥ 90 % der Karten *außerhalb* des
+   auszuschaltenden Knotens aktiv sind (sonst würde „Fach an, Fach aus“ den Großteil des
+   Fachs aktiv lassen, weil Artikel durch das Einschalten selbst „an“ werden).
 2. **Klick auf ☐ oder ◐ aktiviert, Klick auf ☑ setzt aus.** Gilt für Checkbox, Kopf-Knopf und
-   Kachel-Knopf. Der Knopf heißt entsprechend „Aktivieren“ bzw. „Aussetzen“.
+   Kachel-Knopf. Der Knopf heißt entsprechend „Aktivieren“ bzw. „Aussetzen“. Bei ◐ gibt es im
+   Kopf einen zweiten Knopf „Aussetzen“ und im Rechtsklick-Menü beide Aktionen.
 3. **Lernstufen:** neu = `type = 0`; gefestigt = Review-Karte (`type = 2`) mit `ivl ≥ 21`;
    alles andere (Lernen, Wiederlernen, Review < 21 Tage) = gesehen. Aktiv = nicht ausgesetzt
    (`queue ≠ -1`); vergrabene Karten zählen als aktiv.
@@ -94,5 +92,26 @@ Jeweils: Entscheidung – Begründung. Abweichungen von der SPEC sind als **Abwe
     auftauchen (beide archiviert, beide öffnen dasselbe Fenster) – im README steht, welchen man
     aktiviert. Ohne Eingriff in Onigiri lässt sich das nicht vermeiden.
 21. **Toolbar-Link** heißt kurz „AnKIzin“, der Menüeintrag „AnKIzin Explorer“.
+    Zusätzlich ein Knopf „AnKIzin Explorer öffnen“ unter der Deckliste
+    (`deck_browser_will_render_content`); Onigiri zeigt ihn als externes Widget. Abschaltbar
+    über `knopf_startseite`.
 22. **manifest.json:** `min_point_version` 250200 (Anki 25.02), kein `max_point_version`,
     `homepage` leer (trägt der Owner beim Upload ein).
+
+## Oberfläche und Performance (nach dem ersten Test)
+
+23. **Stylesheet nur auf Kopf, Banner, Suche und Kacheln**, nicht aufs ganze Fenster. Ein
+    Stylesheet auf einem Vorfahren schickt auch den Baum durch Qts Stylesheet-Pfad; das
+    kostete gemessen ~40 % pro Scroll-Frame.
+24. **Ringe im Baum aus einem Pixmap-Cache** (Anteile auf ein Grad gerundet), Zeilenhintergrund
+    nur über `PE_PanelItemViewItem`. Zusammen mit 23: Scroll-Frame im Baum ~8 ms → ~4 ms
+    (offscreen gemessen, 4.100 Knoten).
+25. **Kacheln als Raster:** Spaltenzahl aus der Breite (min. 200 px), Kacheln füllen die Zeile.
+    Titel immer zwei Zeilen hoch (Umbruch an Leerzeichen/Bindestrich, zu lange Wörter
+    notfalls im Wort, Rest „…“, voller Name im Tooltip), Status einzeilig in Kurzform
+    („69 % aktiv“). „›“ für Unterthemen als eigenes Element.
+26. **Kopf mit fester Höhe:** Pfad einzeilig, mittlere Teile fallen bei Platzmangel zu „…“
+    weg (voller Pfad im Tooltip); Titel höchstens zwei Zeilen.
+27. **Baum:** linker Bereich mindestens 280 px, Splitter nicht zuklappbar, Lernstand-Spalte
+    aus der Schriftbreite berechnet, Zahl wird notfalls gekürzt. Startfokus auf dem Baum,
+    der Banner-Knopf („Nachzügler aktivieren“) bekommt nur per Tab den Fokus.
