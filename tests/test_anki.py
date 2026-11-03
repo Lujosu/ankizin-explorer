@@ -165,22 +165,39 @@ def window(col, monkeypatch):
     app.processEvents()
 
 
+def _tops(w):
+    """Namen der Fächer = Kinder der Wurzelzeile."""
+    assert w.tree.topLevelItemCount() == 1
+    root = w.tree.topLevelItem(0)
+    return [root.child(i).text(0) for i in range(root.childCount())]
+
+
 def test_window_tree_detail_search(window):
     w = window
     assert w.pages.currentIndex() == 1
-    tops = [w.tree.topLevelItem(i).text(0) for i in range(w.tree.topLevelItemCount())]
+    tops = _tops(w)
     assert tops == sorted(tops, key=str.casefold)
     assert "Innere Medizin" in tops
-    # ohne Auswahl: Übersicht der Wurzel mit Kacheln aller Fächer
+    # Beim Öffnen ist die Wurzel gewählt: Übersicht mit Kacheln aller Fächer
     assert w.title.text() == "AMBOSS-Bibliothek"
     assert w.tiles_layout.count() == len(tops)
+    assert "gelernt" in w.summary.text() and "gesehen" not in w.summary.text()
+    assert w.pal.mature.name() in w.legend.text()
+    w.resize(1100, 720)
+    qt = pytest.importorskip("aqt.qt")
+    qt.QApplication.processEvents()
+    assert "neu" in w.legend.text() and "gefestigt" in w.legend.text()
+    # zu schmal für die Wörter: nur Punkte und Zahlen
+    w.legend.resize(60, w.legend.height())
+    assert "gefestigt" not in w.legend.text() and w.pal.mature.name() in w.legend.text()
+    assert w.status.text() == "0 von 10 Karten aktiv"
 
     w.search.setText("tuberk")
     w._apply_search()
     visible = [k for k, it in w.items.items() if not it.isHidden()]
-    assert sum(1 for k in visible if k[-1] == "tuberkulose") == 3
+    assert sum(1 for k in visible if k and k[-1] == "tuberkulose") == 3
 
-    key = next(k for k in w.items if k[-1] == "pneumologie")
+    key = next(k for k in w.items if k and k[-1] == "pneumologie")
     w.navigate(key)
     assert w.title.text() == "Pneumologie"
     assert "Innere Medizin" in w.crumbs.toolTip()
@@ -189,7 +206,7 @@ def test_window_tree_detail_search(window):
 
 def test_window_toggle_keeps_selection_and_updates(window):
     w = window
-    key = next(k for k in w.items if k[-1] == "pneumologie")
+    key = next(k for k in w.items if k and k[-1] == "pneumologie")
     w.navigate(key)
     w.items[key].setExpanded(True)
     w.toggle(w.current_node())
@@ -235,8 +252,9 @@ def test_window_confirmation_and_banner(window, col):
 def test_window_decks_tab_and_empty_collection(window, tmp_path, monkeypatch):
     w = window
     w.tabs.setCurrentIndex(1)
-    tops = [w.tree.topLevelItem(i).text(0) for i in range(w.tree.topLevelItemCount())]
-    assert tops == ["Infektiologie und Hygiene", "Innere Medizin"]
+    assert w.tree.topLevelItem(0).text(0) == "Decks"
+    assert _tops(w) == ["Infektiologie und Hygiene", "Innere Medizin"]
+    assert w.tree.currentItem() is w.tree.topLevelItem(0)
     w.tabs.setCurrentIndex(0)
 
     empty = anki_collection.Collection(str(tmp_path / "empty.anki2"))
@@ -345,13 +363,171 @@ def test_wrap_elide_keeps_spaces_and_breaks_long_words():
 def test_disable_partial_parent_from_header(window):
     """◐-Oberthema über „Aussetzen“ im Kopf: der ganze Teilbaum geht aus, auch geteilte Karten."""
     w = window
-    key = next(k for k in w.items if k[-1] == "pneumologie")
+    key = next(k for k in w.items if k and k[-1] == "pneumologie")
     w.navigate(key)
     w.toggle(w.current_node())  # an; Tuberkulose ist dadurch auch unter Infektiologie aktiv
-    inf = next(k for k in w.items if k[-1] == "infektiologie")
+    inf = next(k for k in w.items if k and k[-1] == "infektiologie")
     w.navigate(inf)
     assert w.current_node().counts.active and w.off_btn.isVisibleTo(w)
     w.toggle(w.current_node(), False)
     assert w.current_node().counts.active == 0
     assert all(w._node(k).counts.active == 0 for k in w.items if k[: len(inf)] == inf)
     assert not w.off_btn.isVisibleTo(w) and w.toggle_btn.text() == "Aktivieren"
+
+
+def _tile(w, name):
+    from ankizin_explorer.ui.widgets import Tile
+
+    for i in range(w.tiles_layout.count()):
+        tile = w.tiles_layout.itemAt(i).widget()
+        if isinstance(tile, Tile) and tile.findChild(type(w.title)).toolTip() == name:
+            return tile
+    raise KeyError(name)
+
+
+def test_tile_checkbox_toggles_without_navigating(window):
+    qt = pytest.importorskip("aqt.qt")
+    qtest = pytest.importorskip("PyQt6.QtTest")
+    w = window
+    w.resize(1100, 720)
+    qt.QApplication.processEvents()
+    tile = _tile(w, "Innere Medizin")
+    assert tile.check.checkState() == qt.Qt.CheckState.Unchecked
+    assert tile.check.toolTip() == "Aktivieren"
+    qtest.QTest.mouseClick(tile.check, qt.Qt.MouseButton.LeftButton)
+    qt.QApplication.processEvents()
+    # geschaltet, aber nicht hineinnavigiert
+    assert w.current_node().key == ()
+    assert w.title.text() == "AMBOSS-Bibliothek"
+    inner = next(w._node(k) for k in w.items if k and k[-1] == "innere_medizin")
+    assert logic.node_state(inner.counts) == logic.STATE_ON
+    tile = _tile(w, "Innere Medizin")
+    assert tile.check.checkState() == qt.Qt.CheckState.Checked
+    assert tile.check.toolTip() == "Aussetzen"
+
+    # Der Klick selbst ändert den angezeigten Zustand nie, erst die neuen Kartenzahlen
+    tile.check.click()
+    assert tile.check.checkState() == qt.Qt.CheckState.Checked
+    qt.QApplication.processEvents()
+    assert logic.node_state(inner.counts) == logic.STATE_OFF
+    assert _tile(w, "Innere Medizin").check.checkState() == qt.Qt.CheckState.Unchecked
+
+    # Klick auf den Rest der Kachel navigiert hinein
+    tile = _tile(w, "Innere Medizin")
+    qtest.QTest.mouseClick(tile, qt.Qt.MouseButton.LeftButton, pos=qt.QPoint(tile.width() // 2, tile.height() - 8))
+    qt.QApplication.processEvents()
+    assert w.title.text() == "Innere Medizin"
+
+
+def test_root_row(window):
+    qt = pytest.importorskip("aqt.qt")
+    w = window
+    root = w.tree.topLevelItem(0)
+    assert root.text(0) == "AMBOSS-Bibliothek" and root.data(0, qt.Qt.ItemDataRole.UserRole) == ()
+    assert root.isExpanded() and w.tree.currentItem() is root
+    assert w.current_node() is w.current_view().root
+
+    # Breadcrumb auf die Wurzel wählt die Wurzelzeile
+    key = next(k for k in w.items if k and k[-1] == "pneumologie")
+    w.navigate(key)
+    w._on_crumb("0")
+    assert w.tree.currentItem() is root and w.title.text() == "AMBOSS-Bibliothek"
+
+    # Suche: Wurzel bleibt sichtbar und aufgeklappt, auch ohne Treffer
+    w.search.setText("gibtesnicht")
+    w._apply_search()
+    assert not root.isHidden() and root.isExpanded()
+    w.search.setText("")
+    w._apply_search()
+    assert root.isExpanded()
+
+    # Zuklappen, Sortier- und Tabwechsel: Wurzel wieder offen, Auswahl bleibt
+    w.navigate(key)
+    w._collapse_all()
+    assert w.tree.topLevelItem(0).isExpanded()
+    w.sort_box.setCurrentIndex(1)
+    assert w.tree.topLevelItem(0).isExpanded() and w.current_node().key == key
+    w.tabs.setCurrentIndex(1)
+    assert w.tree.topLevelItem(0).isExpanded()
+    w.tabs.setCurrentIndex(0)
+    assert w.current_node().key == key
+    w.navigate(())
+    w.reload("full")
+    assert w.tree.currentItem() is w.tree.topLevelItem(0)
+
+    # Checkbox der Wurzel schaltet alles
+    root = w.tree.topLevelItem(0)
+    root.setCheckState(0, qt.Qt.CheckState.Checked)
+    assert w.current_view().root.counts.active == w.current_view().root.counts.total
+    assert w.tree.topLevelItem(0).checkState(0) == qt.Qt.CheckState.Checked
+
+
+def test_root_checkbox_asks_from_500(window, monkeypatch):
+    qt = pytest.importorskip("aqt.qt")
+    w = window
+    monkeypatch.setattr(logic, "CONFIRM_THRESHOLD", 5)
+    from ankizin_explorer.ui import window as win
+
+    monkeypatch.setattr(win, "askUser", lambda text, **k: w._asked.append(text) or False)
+    w.tree.topLevelItem(0).setCheckState(0, qt.Qt.CheckState.Checked)
+    assert w._asked and w.current_view().root.counts.active == 0
+    # abgelehnt: Checkbox zeigt wieder den Kartenzustand
+    assert w.tree.topLevelItem(0).checkState(0) == qt.Qt.CheckState.Unchecked
+
+
+def test_more_menu_and_reload_shortcut(window, col, monkeypatch):
+    qt = pytest.importorskip("aqt.qt")
+    w = window
+    assert w.more_btn.popupMode() == qt.QToolButton.ToolButtonPopupMode.InstantPopup
+    labels = [a.text() for a in w.more_btn.menu().actions() if not a.isSeparator()]
+    assert labels == ["Vorklinik anzeigen", "Neu laden"]
+    assert w.vk_action.isCheckable() and not w.vk_action.isChecked()
+    assert w.reload_action.shortcut() == qt.QKeySequence("Ctrl+R")
+    assert w.reload_sc.key() == qt.QKeySequence("Ctrl+R")
+
+    # Vorklinik über das Menü lädt neu (mit Gruppen „Klinik“/„Vorklinik“)
+    w.vk_action.setChecked(True)
+    assert _tops(w) == ["Klinik", "Vorklinik"]
+    from ankizin_explorer.ui import window as win
+
+    monkeypatch.setattr(win.config, "show_vorklinik", lambda: False)
+    w.on_config_changed()
+    assert not w.vk_action.isChecked()
+
+    # Neu laden ist gesperrt, solange geladen wird
+    from ankizin_explorer import ops
+
+    pending = []
+    monkeypatch.setattr(ops, "load_snapshot", lambda p, vk, ok, fail: pending.append((ok, vk)))
+    w.reload_sc.activated.emit()
+    assert len(pending) == 1
+    assert not w.reload_action.isEnabled() and not w.reload_sc.isEnabled()
+    ok, vk = pending.pop()
+    ok(loader.load_snapshot(col, vk))
+    assert w.reload_action.isEnabled() and w.reload_sc.isEnabled()
+    w.reload_action.trigger()
+    assert len(pending) == 1
+
+
+def test_status_texts():
+    from ankizin_explorer.model import Counts
+    from ankizin_explorer.ui.widgets import status_detail, status_text
+
+    # 92 aktiv, 8 ausgesetzt, davon 5 neu -> eingeschaltet (≥ 90 %) mit Nachzüglern
+    c = Counts([80, 6, 6, 5, 2, 1])
+    assert status_text(c) == "92 von 100 Karten aktiv · 5 neue ausgesetzt"
+    assert status_detail(c) == "teilweise aktiv (92 %) · 92 aktiv, 8 ausgesetzt · 5 neue ausgesetzt"
+    c = Counts([10, 0, 0, 30, 0, 0])
+    assert status_text(c) == "10 von 40 Karten aktiv"
+    assert status_text(Counts([1, 0, 0, 0, 0, 0])) == "1 von 1 Karte aktiv"
+
+
+def test_legend_follows_theme(window, monkeypatch):
+    from ankizin_explorer.ui import theme
+
+    w = window
+    light = w.pal.new.name()
+    monkeypatch.setattr(theme, "night_mode", lambda: True)
+    w.apply_theme()
+    assert w.pal.dark and w.pal.new.name() != light
+    assert w.pal.new.name() in w.legend.text() and light not in w.legend.text()

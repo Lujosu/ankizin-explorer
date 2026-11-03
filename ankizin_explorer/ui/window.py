@@ -6,7 +6,6 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from aqt import mw
 from aqt.qt import (
-    QCheckBox,
     QComboBox,
     QFrame,
     QHBoxLayout,
@@ -24,6 +23,7 @@ from aqt.qt import (
     QStackedWidget,
     QTabBar,
     QTimer,
+    QToolButton,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -46,20 +46,25 @@ from ..text import (
 )
 from .theme import Palette
 from .widgets import (
+    CHECK_STATES,
     ROLE_COUNTS,
     CrumbLabel,
     ElidedLabel,
     FlowLayout,
+    LegendLabel,
     RingDelegate,
     RingWidget,
     Tile,
     ring_column_width,
+    status_detail,
     status_text,
     toggle_text,
 )
 
 GEOM_KEY = "ankizin_explorer"
 ROLE_KEY = Qt.ItemDataRole.UserRole
+ROOT_KEY: Tuple[str, ...] = ()
+RELOAD_KEYS = "Ctrl+R"  # am Mac ⌘R
 VIEWS = [("amboss", "AMBOSS-Bibliothek"), ("decks", "Decks")]
 
 Key = Tuple[str, ...]
@@ -135,7 +140,7 @@ class ExplorerWindow(QWidget):
         self.banner.hide()
         root.addWidget(self.banner)
 
-        # Kopfzeile: Tabs, Sortierung, Vorklinik, Neu laden
+        # Kopfzeile: Tabs, Sortierung, „…“-Menü (Vorklinik, Neu laden)
         top = QHBoxLayout()
         self.tabs = QTabBar()
         self.tabs.setDrawBase(False)
@@ -151,14 +156,27 @@ class ExplorerWindow(QWidget):
             self.sort_box.addItem(label, mode)
         self.sort_box.currentIndexChanged.connect(self._on_sort)
         top.addWidget(self.sort_box)
-        self.vk_box = QCheckBox("Vorklinik anzeigen")
-        self.vk_box.setChecked(self._show_vorklinik)
-        self.vk_box.toggled.connect(self._on_vorklinik)
-        top.addWidget(self.vk_box)
-        self.reload_btn = QPushButton("Neu laden")
-        self.reload_btn.setToolTip("Daten neu aus der Sammlung lesen")
-        self.reload_btn.clicked.connect(lambda: self.reload("full"))
-        top.addWidget(self.reload_btn)
+        self.more_btn = QToolButton()
+        self.more_btn.setText("…")
+        self.more_btn.setToolTip("Weitere Optionen")
+        self.more_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        # Ohne Menüpfeil; der würde das „…“ fast verdecken
+        self.more_btn.setStyleSheet("QToolButton::menu-indicator { image: none; width: 0px; }")
+        more = QMenu(self.more_btn)
+        self.vk_action = more.addAction("Vorklinik anzeigen")
+        self.vk_action.setCheckable(True)
+        self.vk_action.setChecked(self._show_vorklinik)
+        self.vk_action.toggled.connect(self._on_vorklinik)
+        more.addSeparator()
+        self.reload_action = more.addAction("Neu laden")
+        self.reload_action.setToolTip("Daten neu aus der Sammlung lesen")
+        # Kürzel nur anzeigen; ausgelöst wird es über den QShortcut unten. Als
+        # Fenster-Kürzel der Aktion wäre es doppelt belegt und Qt löste keins aus.
+        self.reload_action.setShortcut(QKeySequence(RELOAD_KEYS))
+        self.reload_action.setShortcutContext(Qt.ShortcutContext.WidgetShortcut)
+        self.reload_action.triggered.connect(lambda _=False: self.reload("full"))
+        self.more_btn.setMenu(more)
+        top.addWidget(self.more_btn)
         root.addLayout(top)
 
         self.pages = QStackedWidget()
@@ -236,9 +254,11 @@ class ExplorerWindow(QWidget):
         self.summary = QLabel()
         self.summary.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         info.addWidget(self.summary)
-        self.status = QLabel()
+        # Legende in den Ringfarben; wird bei jedem Anzeigen neu erzeugt (Theme-Wechsel)
+        self.legend = LegendLabel()
+        info.addWidget(self.legend)
+        self.status = ElidedLabel("")
         self.status.setObjectName("azSubtle")
-        self.status.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         info.addWidget(self.status)
         hl.addLayout(info, 1)
         btns = QVBoxLayout()
@@ -279,6 +299,8 @@ class ExplorerWindow(QWidget):
         find_sc.activated.connect(lambda: (self.search.setFocus(), self.search.selectAll()))
         close_sc = QShortcut(QKeySequence("Escape"), self)
         close_sc.activated.connect(self._on_escape)
+        self.reload_sc = QShortcut(QKeySequence(RELOAD_KEYS), self)
+        self.reload_sc.activated.connect(lambda: self.reload("full"))
 
     def _new_tiles_container(self) -> None:
         inner = QWidget()
@@ -311,7 +333,7 @@ class ExplorerWindow(QWidget):
                 self._pending = kind
             return
         self._loading = True
-        self.reload_btn.setEnabled(False)
+        self._set_reload_enabled(False)
         if kind == "full":
             show_vk = self._show_vorklinik
             if self.snapshot is None:
@@ -325,9 +347,13 @@ class ExplorerWindow(QWidget):
                 self, self.snapshot, lambda snap: self._on_loaded(snap, self._loaded_vorklinik), self._on_load_failed
             )
 
+    def _set_reload_enabled(self, enabled: bool) -> None:
+        self.reload_action.setEnabled(enabled)
+        self.reload_sc.setEnabled(enabled)
+
     def _finish_loading(self) -> None:
         self._loading = False
-        self.reload_btn.setEnabled(True)
+        self._set_reload_enabled(True)
         pending, self._pending = self._pending, None
         if pending:
             self.reload(pending)
@@ -402,17 +428,12 @@ class ExplorerWindow(QWidget):
 
     def _fill_item(self, item: QTreeWidgetItem, node: Node, force: bool = False) -> None:
         c = node.counts
-        state = logic.node_state(c)
-        check = {
-            logic.STATE_ON: Qt.CheckState.Checked,
-            logic.STATE_PARTIAL: Qt.CheckState.PartiallyChecked,
-            logic.STATE_OFF: Qt.CheckState.Unchecked,
-        }[state]
+        check = CHECK_STATES[logic.node_state(c)]
         # Neue Items haben noch keinen Check-Zustand (keine Box) – dann immer setzen
         if force or item.checkState(0) != check:
             item.setCheckState(0, check)
         item.setData(1, ROLE_COUNTS, list(c.by_code))
-        tip = f"{node.name}\n{status_text(c)}\n\n{counts_tooltip(c)}"
+        tip = f"{node.name}\n{status_detail(c)}\n\n{counts_tooltip(c)}"
         item.setToolTip(0, tip)
         item.setToolTip(1, tip)
 
@@ -423,22 +444,21 @@ class ExplorerWindow(QWidget):
         try:
             self.tree.clear()
             self.items = {}
-            stack = [(child, None) for child in reversed(sorted_children(view.root, self.sort_mode))]
+            # Die Wurzel ist die oberste Zeile, alle Fächer hängen darunter
+            stack = [(view.root, None)]
             while stack:
                 node, parent_item = stack.pop()
                 item = self._item_for(node, parent_item if parent_item is not None else self.tree)
                 for child in reversed(sorted_children(node, self.sort_mode)):
                     stack.append((child, item))
-            for key in state.expanded:
+            for key in state.expanded | {ROOT_KEY}:
                 it = self.items.get(key)
                 if it is not None:
                     it.setExpanded(True)
             self._structure = view.structure()
-            sel = self.items.get(state.selected) if state.selected else None
-            if sel is not None:
-                self.tree.setCurrentItem(sel)
-            else:
-                self.tree.setCurrentItem(None)
+            # Ohne (noch vorhandene) Auswahl ist die Wurzel gewählt
+            sel = self.items.get(state.selected) if state.selected is not None else None
+            self.tree.setCurrentItem(sel if sel is not None else self.items.get(ROOT_KEY))
         finally:
             self.tree.setUpdatesEnabled(True)
             self._updating = False
@@ -467,6 +487,8 @@ class ExplorerWindow(QWidget):
         if self._updating or self.search.text().strip():
             return
         key = item.data(0, ROLE_KEY)
+        if key == ROOT_KEY:  # die Wurzel ist ohnehin immer aufgeklappt
+            return
         if expanded:
             self.states[self.view_id].expanded.add(key)
         else:
@@ -484,7 +506,7 @@ class ExplorerWindow(QWidget):
                 expanded = self.states[self.view_id].expanded
                 for key, item in self.items.items():
                     item.setHidden(False)
-                    want = key in expanded
+                    want = key in expanded or key == ROOT_KEY
                     if item.isExpanded() != want:
                         item.setExpanded(want)
             else:
@@ -527,12 +549,11 @@ class ExplorerWindow(QWidget):
             self.crumbs.show()
         self._crumb_nodes = crumbs
         self.title.setText(node.name)
-        self.summary.setText(
-            f"<b>{fmt_int(c.studied)}/{fmt_int(c.total)}</b> gesehen · "
-            f"{fmt_int(c.new)} neu · {fmt_int(c.seen)} gesehen · {fmt_int(c.mature)} gefestigt"
-        )
+        self.summary.setText(f"<b>{fmt_int(c.studied)}</b> von <b>{fmt_int(c.total)}</b> gelernt")
         self.summary.setToolTip(counts_tooltip(c))
-        self.status.setText(f"{status_text(c)} · {fmt_int(c.active)} aktiv, {fmt_int(c.suspended)} ausgesetzt")
+        self.legend.set_counts(c, self.pal)
+        self.status.setText(status_text(c))
+        self.status.setToolTip(status_detail(c))  # nach setText, das den Tooltip setzt
         self.toggle_btn.setText(toggle_text(c))
         self.off_btn.setVisible(logic.node_state(c) == logic.STATE_PARTIAL)
         self._fill_tiles(node)
@@ -599,12 +620,7 @@ class ExplorerWindow(QWidget):
             node = self._crumb_nodes[int(href)]
         except (ValueError, IndexError, AttributeError):
             return
-        if node.parent is None:
-            self.tree.setCurrentItem(None)
-            self.tree.clearSelection()
-            self._show_detail()
-        else:
-            self.navigate(node.key)
+        self.navigate(node.key)
 
     def _on_current(self, _cur, _prev) -> None:
         if not self._updating:
@@ -630,8 +646,8 @@ class ExplorerWindow(QWidget):
 
     def on_config_changed(self) -> None:
         vk = config.show_vorklinik()
-        if vk != self.vk_box.isChecked():
-            self.vk_box.setChecked(vk)
+        if vk != self.vk_action.isChecked():
+            self.vk_action.setChecked(vk)
 
     def _on_escape(self) -> None:
         if self.search.text():
@@ -773,7 +789,14 @@ class ExplorerWindow(QWidget):
 
     def _collapse_all(self) -> None:
         self.states[self.view_id].expanded.clear()
-        self.tree.collapseAll()
+        self._updating = True
+        try:
+            self.tree.collapseAll()
+            root = self.items.get(ROOT_KEY)
+            if root is not None:
+                root.setExpanded(True)
+        finally:
+            self._updating = False
 
     def show_in_browser(self, node: Optional[Node]) -> None:
         if node is None or mw.col is None or not node.search:

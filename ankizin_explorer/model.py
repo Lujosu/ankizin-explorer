@@ -82,7 +82,7 @@ class Counts:
 
     @property
     def studied(self) -> int:
-        """„gesehen“ in der Anzeige „gesehen/gesamt“ = gesehen + gefestigt."""
+        """„gelernt“ in der Anzeige („54 von 148 gelernt“, „54/148“) = gesehen + gefestigt."""
         return self.seen + self.mature
 
     @property

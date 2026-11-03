@@ -6,6 +6,7 @@ import re
 from typing import Callable, Dict, List, Optional
 
 from aqt.qt import (
+    QCheckBox,
     QEvent,
     QFrame,
     QHBoxLayout,
@@ -15,7 +16,6 @@ from aqt.qt import (
     QPen,
     QPixmap,
     QPoint,
-    QPushButton,
     QRect,
     QRectF,
     QSize,
@@ -23,6 +23,7 @@ from aqt.qt import (
     QStyle,
     QStyledItemDelegate,
     QStyleOptionViewItem,
+    QTimer,
     QVBoxLayout,
     QWidget,
     Qt,
@@ -30,7 +31,7 @@ from aqt.qt import (
 
 from .. import logic
 from ..model import Counts
-from ..text import counts_tooltip, fmt_int, state_label
+from ..text import active_text, counts_tooltip, fmt_int, learned_text, state_label
 from .theme import Palette
 
 ROLE_COUNTS = Qt.ItemDataRole.UserRole + 1
@@ -113,7 +114,7 @@ class RingWidget(QWidget):
 
 
 class RingDelegate(QStyledItemDelegate):
-    """Spalte „Lernstand“ im Baum: kleiner Ring + „gesehen/gesamt“."""
+    """Spalte „Lernstand“ im Baum: kleiner Ring + „gelernt/gesamt“."""
 
     def __init__(self, parent, palette_fn: Callable[[], Palette]) -> None:
         super().__init__(parent)
@@ -373,18 +374,107 @@ def short_status(counts: Counts) -> str:
     return state_label(state)
 
 
-def status_text(counts: Counts) -> str:
-    state = logic.node_state(counts)
-    parts = [state_label(state)]
-    if state == logic.STATE_PARTIAL:
-        parts[0] += f" ({round(100 * counts.active / counts.total)} %)"
+def _stragglers_part(counts: Counts) -> List[str]:
+    """„12 neue ausgesetzt“, wenn der Knoten eingeschaltet ist (Nachzügler, SPEC 3.1)."""
     if counts.suspended_new and logic.is_switched_on(counts):
-        parts.append(f"{fmt_int(counts.suspended_new)} neue ausgesetzt")
-    return " · ".join(parts)
+        return [f"{fmt_int(counts.suspended_new)} neue ausgesetzt"]
+    return []
+
+
+def status_text(counts: Counts) -> str:
+    """Statuszeile im Kopf: „102 von 148 Karten aktiv · 12 neue ausgesetzt“."""
+    return " · ".join([active_text(counts)] + _stragglers_part(counts))
+
+
+def status_detail(counts: Counts) -> str:
+    """Ausführlich für Tooltips: „teilweise aktiv (69 %) · 102 aktiv, 46 ausgesetzt · …“."""
+    state = logic.node_state(counts)
+    head = state_label(state)
+    if state == logic.STATE_PARTIAL:
+        head += f" ({round(100 * counts.active / counts.total)} %)"
+    parts = [head, f"{fmt_int(counts.active)} aktiv, {fmt_int(counts.suspended)} ausgesetzt"]
+    return " · ".join(parts + _stragglers_part(counts))
+
+
+def legend_html(counts: Counts, pal: Palette, labels: bool = True) -> str:
+    """Legende in den Ringfarben: „● 94 neu  ● 29 gesehen  ● 25 gefestigt“.
+
+    Ohne `labels` nur Punkte und Zahlen (für schmale Fenster).
+    """
+    parts = []
+    for value, color, label in _legend_items(counts, pal):
+        text = f"{fmt_int(value)}&nbsp;{label}" if labels else fmt_int(value)
+        parts.append(f'<span style="color:{color.name()}">●</span>&nbsp;{text}')
+    return "&nbsp;&nbsp;&nbsp;".join(parts)
+
+
+def _legend_items(counts: Counts, pal: Palette):
+    return (
+        (counts.new, pal.new, "neu"),
+        (counts.seen, pal.seen, "gesehen"),
+        (counts.mature, pal.mature, "gefestigt"),
+    )
+
+
+class LegendLabel(QLabel):
+    """Legende im Kopf, einzeilig; passt sie nicht, entfallen die Wörter (Zahlen bleiben)."""
+
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self._counts = Counts()
+        self._pal: Optional[Palette] = None
+        self.setTextFormat(Qt.TextFormat.RichText)
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+
+    def set_counts(self, counts: Counts, pal: Palette) -> None:
+        self._counts = counts
+        self._pal = pal
+        self.setToolTip(counts_tooltip(counts))
+        self._relayout()
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        self._relayout()
+
+    def _relayout(self) -> None:
+        if self._pal is None:
+            return
+        full = "   ".join(f"● {fmt_int(v)} {label}" for v, _c, label in _legend_items(self._counts, self._pal))
+        width = self.contentsRect().width()
+        labels = width <= 0 or self.fontMetrics().horizontalAdvance(full) <= width
+        super().setText(legend_html(self._counts, self._pal, labels))
+
+
+CHECK_STATES = {
+    logic.STATE_ON: Qt.CheckState.Checked,
+    logic.STATE_PARTIAL: Qt.CheckState.PartiallyChecked,
+    logic.STATE_OFF: Qt.CheckState.Unchecked,
+}
+
+
+class StateCheckBox(QCheckBox):
+    """Tri-State-Checkbox, deren Zustand nur aus den Karten kommt.
+
+    Ein Klick ändert den angezeigten Zustand nicht selbst (wie die Checkbox im Baum, die
+    sofort zurückgesetzt wird), sondern meldet nur `clicked`; das Schalten übernimmt der
+    Aufrufer, danach wird die Kachel mit den neuen Zahlen neu gebaut.
+    """
+
+    def __init__(self, counts: Counts, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self.setTristate(True)
+        self.set_counts(counts)
+
+    def set_counts(self, counts: Counts) -> None:
+        self.setCheckState(CHECK_STATES[logic.node_state(counts)])
+        self.setToolTip(toggle_text(counts))
+
+    def nextCheckState(self) -> None:  # noqa: N802
+        pass
 
 
 class Tile(QFrame):
-    """Kachel für ein direktes Kind: Name, Ring, Zahlen, Status, An/Aus-Knopf."""
+    """Kachel für ein direktes Kind: Checkbox, Ring, Name, Zahlen, Status."""
 
     def __init__(
         self,
@@ -409,11 +499,15 @@ class Tile(QFrame):
         lay.setContentsMargins(12, 10, 12, 10)
         lay.setSpacing(6)
 
+        # Oben Checkbox + Titel (der Titel bekommt so die volle Breite), darunter der
+        # Ring neben Zahlen und Status
         top = QHBoxLayout()
-        top.setSpacing(10)
-        ring = RingWidget(38)
-        ring.set_counts(counts, pal)
-        top.addWidget(ring, 0, Qt.AlignmentFlag.AlignVCenter)
+        top.setSpacing(8)
+        # Klicks auf die Checkbox nimmt sie selbst an; sie erreichen die Kachel also nicht
+        # und navigieren nicht hinein
+        self.check = StateCheckBox(counts)
+        self.check.clicked.connect(lambda _=False: self._toggle_later(on_toggle))
+        top.addWidget(self.check, 0, Qt.AlignmentFlag.AlignVCenter)
         # Immer zwei Zeilen hoch, damit alle Kacheln einer Reihe gleich aussehen
         title = ElidedLabel(name, lines=2)
         title.setObjectName("azTileTitle")
@@ -425,23 +519,29 @@ class Tile(QFrame):
             top.addWidget(arrow, 0, Qt.AlignmentFlag.AlignVCenter)
         lay.addLayout(top)
 
-        nums = ElidedLabel(f"{fmt_int(counts.studied)}/{fmt_int(counts.total)} gesehen")
+        body = QHBoxLayout()
+        body.setSpacing(10)
+        ring = RingWidget(38)
+        ring.set_counts(counts, pal)
+        body.addWidget(ring, 0, Qt.AlignmentFlag.AlignVCenter)
+        lines = QVBoxLayout()
+        lines.setSpacing(2)
+        nums = ElidedLabel(learned_text(counts))
         nums.setObjectName("azSubtle")
         nums.setToolTip(counts_tooltip(counts))
-        lay.addWidget(nums)
-
-        bottom = QHBoxLayout()
-        bottom.setSpacing(8)
+        lines.addWidget(nums)
         status = ElidedLabel(short_status(counts))
-        status.setToolTip(status_text(counts))
+        status.setToolTip(status_detail(counts))
         status.setObjectName("azSubtle")
-        bottom.addWidget(status, 1, Qt.AlignmentFlag.AlignVCenter)
-        btn = QPushButton(toggle_text(counts))
-        btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn.setAutoDefault(False)
-        btn.clicked.connect(lambda _=False: on_toggle())
-        bottom.addWidget(btn, 0, Qt.AlignmentFlag.AlignVCenter)
-        lay.addLayout(bottom)
+        lines.addWidget(status)
+        body.addLayout(lines, 1)
+        lay.addLayout(body)
+
+    @staticmethod
+    def _toggle_later(on_toggle: Callable[[], None]) -> None:
+        # Erst nach dem Klick schalten: Das baut die Kacheln neu, und die Checkbox soll
+        # nicht mitten in ihrem eigenen Mausereignis gelöscht werden
+        QTimer.singleShot(0, on_toggle)
 
     def mouseReleaseEvent(self, event) -> None:  # noqa: N802
         if event.button() == Qt.MouseButton.LeftButton and self.rect().contains(event.position().toPoint()):

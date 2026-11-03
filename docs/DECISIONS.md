@@ -16,7 +16,7 @@ Jeweils: Entscheidung – Begründung. Abweichungen von der SPEC sind als **Abwe
    auszuschaltenden Knotens aktiv sind (sonst würde „Fach an, Fach aus“ den Großteil des
    Fachs aktiv lassen, weil Artikel durch das Einschalten selbst „an“ werden).
 2. **Klick auf ☐ oder ◐ aktiviert, Klick auf ☑ setzt aus.** Gilt für Checkbox, Kopf-Knopf und
-   Kachel-Knopf. Der Knopf heißt entsprechend „Aktivieren“ bzw. „Aussetzen“. Bei ◐ gibt es im
+   Kachel-Knopf (seit 29 eine Checkbox). Der Knopf heißt entsprechend „Aktivieren“ bzw. „Aussetzen“. Bei ◐ gibt es im
    Kopf einen zweiten Knopf „Aussetzen“ und im Rechtsklick-Menü beide Aktionen.
 3. **Lernstufen:** neu = `type = 0`; gefestigt = Review-Karte (`type = 2`) mit `ivl ≥ 21`;
    alles andere (Lernen, Wiederlernen, Review < 21 Tage) = gesehen. Aktiv = nicht ausgesetzt
@@ -58,7 +58,7 @@ Jeweils: Entscheidung – Begründung. Abweichungen von der SPEC sind als **Abwe
     nicht. Karten in gefilterten Decks zählen zu ihrem Ursprungsdeck (`odid`).
 13. **Vorklinik aus:** die Fächer der Klinik stehen direkt oben. **Vorklinik an:** oben die
     Gruppen „Klinik“ und „Vorklinik“. Das gilt für beide Tabs.
-14. **Die Wurzel** (keine Auswahl) zeigt die ganze Bibliothek bzw. alle Decks mit Kacheln für
+14. **Die Wurzel** (keine Auswahl; seit 31 die oberste Baumzeile) zeigt die ganze Bibliothek bzw. alle Decks mit Kacheln für
     die Fächer und einem An/Aus-Knopf für alles (mit Abfrage ab 500).
 
 ## Oberfläche
@@ -115,3 +115,22 @@ Jeweils: Entscheidung – Begründung. Abweichungen von der SPEC sind als **Abwe
 27. **Baum:** linker Bereich mindestens 280 px, Splitter nicht zuklappbar, Lernstand-Spalte
     aus der Schriftbreite berechnet, Zahl wird notfalls gekürzt. Startfokus auf dem Baum,
     der Banner-Knopf („Nachzügler aktivieren“) bekommt nur per Tab den Fokus.
+28. **Begriffe:** Gesamtfortschritt heißt „gelernt“ (= gesehen + gefestigt), „gesehen“ nur noch
+    für die Stufe < 21 Tage. Kopf: „54 von 148 gelernt“, darunter eine Legende in den
+    Ringfarben („● 94 neu ● 29 gesehen ● 25 gefestigt“); reicht die Breite nicht, entfallen
+    die Wörter, Zahlen und Punkte bleiben. Kacheln „29 von 56 gelernt“, Baum weiter „54/148“.
+29. **Kacheln mit Tri-State-Checkbox** statt „Aktivieren/Aussetzen“-Knopf, links in der
+    Titelzeile; Ring, Zahlen und Status darunter (so bleibt dem Titel die Breite). Gleiche
+    Logik wie im Baum: Zustand nur aus den Karten, ein Klick ändert die Anzeige nicht selbst,
+    sondern schaltet (☐/◐ → an, ☑ → aus). Geschaltet wird erst nach dem Mausereignis, weil
+    der Neuaufbau die Kachel samt Checkbox ersetzt. Klick auf die Checkbox navigiert nicht.
+30. **„…“-Menü** rechts neben der Sortierung mit „Vorklinik anzeigen“ und „Neu laden“
+    (Ctrl+R, Mac ⌘R). Das Kürzel ist ein `QShortcut` im Fenster; im Menü wird es nur
+    angezeigt (sonst wäre es doppelt belegt). Während des Ladens ist beides gesperrt.
+31. **Wurzel als oberste Baumzeile** („AMBOSS-Bibliothek“ bzw. „Decks“) mit Checkbox und
+    Ring, immer aufgeklappt (auch nach Neuaufbau, Sortier-/Tabwechsel, „Alles zuklappen“
+    und bei der Suche). Beim Öffnen ist sie gewählt; der Pfad-Link auf die Wurzel wählt sie.
+    Ihre Checkbox schaltet alles (Abfrage ab 500). Kostet eine Einrückungsstufe.
+32. **Statuszeile im Kopf kurz:** „102 von 148 Karten aktiv“, bei eingeschaltetem Knoten mit
+    Nachzüglern „ · 12 neue ausgesetzt“. Die ausführliche Form („teilweise aktiv (69 %) ·
+    102 aktiv, 46 ausgesetzt · …“) steht im Tooltip und in den Baum-Tooltips.

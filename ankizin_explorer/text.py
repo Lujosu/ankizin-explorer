@@ -43,7 +43,8 @@ def filter_keys(nodes: Sequence[Node], query: str):
 
     Liefert (sichtbar, aufklappen, treffer) als Mengen von Schlüsseln, oder None ohne
     Suche. Sichtbar sind Treffer, deren Pfade und die Teilbäume unter Treffern
-    (zugeklappt), damit man in einen gefundenen Knoten hineinschauen kann.
+    (zugeklappt), damit man in einen gefundenen Knoten hineinschauen kann. Die Wurzel
+    (oberste Baumzeile) ist immer sichtbar und aufgeklappt.
     """
     terms = search_terms(query)
     if not terms:
@@ -54,6 +55,7 @@ def filter_keys(nodes: Sequence[Node], query: str):
     # nodes ist Präorder: Eltern kommen vor ihren Kindern
     for n in nodes:
         if n.parent is None:
+            expand.add(n.key)
             continue
         if n.parent.key in hits or n.parent.key in under_hit:
             under_hit.add(n.key)
@@ -96,10 +98,20 @@ def state_label(state: str) -> str:
     return {"on": "aktiv", "partial": "teilweise aktiv", "off": "ausgesetzt"}[state]
 
 
+def learned_text(c: Counts) -> str:
+    """Gesamtfortschritt: „54 von 148 gelernt“ (gelernt = gesehen + gefestigt)."""
+    return f"{fmt_int(c.studied)} von {fmt_int(c.total)} gelernt"
+
+
+def active_text(c: Counts) -> str:
+    """Kurzer Schaltzustand: „102 von 148 Karten aktiv“."""
+    return f"{fmt_int(c.active)} von {karten(c.total)} aktiv"
+
+
 def counts_tooltip(c: Counts) -> str:
     return "\n".join(
         [
-            f"Gesamt: {fmt_int(c.total)}",
+            f"Gelernt: {fmt_int(c.studied)} von {karten(c.total)} (gesehen + gefestigt)",
             f"Neu: {fmt_int(c.new)}",
             f"Gesehen (< 21 Tage): {fmt_int(c.seen)}",
             f"Gefestigt (≥ 21 Tage): {fmt_int(c.mature)}",

@@ -36,6 +36,10 @@ def test_search_finds_all_locations_with_paths():
         for anc in n.path()[:-1]:
             assert anc.key in expand and anc.key in visible
     assert not any(n.name == "Pneumonie (Lungenentzündung)" and n.key in visible for n in v.nodes)
+    # Wurzel (oberste Baumzeile) bleibt sichtbar und aufgeklappt
+    assert v.root.key in visible and v.root.key in expand
+    visible, expand, hits = text.filter_keys(v.nodes, "gibtesnicht")
+    assert not hits and visible == expand == {v.root.key}
 
 
 def test_search_case_umlauts_and_multiple_terms():
@@ -69,8 +73,15 @@ def test_sorting():
     assert ratios == sorted(ratios, reverse=True)
 
 
+def test_learned_and_active_text():
+    v = view()
+    c = v.root.counts
+    assert text.learned_text(c) == f"{c.studied} von {c.total} gelernt"
+    assert text.active_text(c) == f"{c.active} von {c.total} Karten aktiv"
+
+
 def test_tooltip_mentions_all_numbers():
     v = view()
     tip = text.counts_tooltip(v.root.counts)
-    for word in ("Gesamt", "Neu", "Gesehen", "Gefestigt", "Aktiv", "Ausgesetzt"):
+    for word in ("Gelernt", "Neu", "Gesehen", "Gefestigt", "Aktiv", "Ausgesetzt"):
         assert word in tip

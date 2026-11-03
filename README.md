@@ -31,14 +31,16 @@ Aktivieren oder Aussetzen – statt sich durch den Tag-Explorer zu klicken.
 
 - **Extras → AnKIzin Explorer** (Kürzel Ctrl+Alt+A, am Mac ⌘⌥A), der Link **AnKIzin** in
   der oberen Leiste oder der Knopf **„AnKIzin Explorer öffnen“** unter der Deckliste.
-- Checkbox im Baum oder Knopf in der Übersicht: ☐/◐ → aktivieren, ☑ → aussetzen. Ein
-  Oberthema schaltet seinen ganzen Teilbaum. Bei ◐ gibt es im Kopf und im Rechtsklick-Menü
-  zusätzlich „Aussetzen“.
+- Checkbox im Baum oder in einer Kachel, oder Knopf im Kopf der Übersicht: ☐/◐ →
+  aktivieren, ☑ → aussetzen. Ein Oberthema schaltet seinen ganzen Teilbaum; die oberste
+  Zeile im Baum („AMBOSS-Bibliothek“ bzw. „Decks“) schaltet alles. Bei ◐ gibt es im Kopf und
+  im Rechtsklick-Menü zusätzlich „Aussetzen“. Klick auf den Rest einer Kachel öffnet das Thema.
+- Lernstand: „gelernt“ = gesehen + gefestigt; die Farben des Rings erklärt die Legende im Kopf.
 - Aussetzen behält den Lernstand; Deck-Optionen werden nie verändert, das Tageslimit für neue
   Karten regelt weiter Anki.
 - Rechtsklick auf ein Thema: „Im Browser zeigen“.
-- Einstellung „Vorklinik anzeigen“ direkt im Fenster oder unter *Extras → Add-ons →
-  AnKIzin Explorer → Konfiguration*.
+- Im „…“-Menü oben rechts: „Vorklinik anzeigen“ (auch unter *Extras → Add-ons →
+  AnKIzin Explorer → Konfiguration*) und „Neu laden“ (Ctrl+R, am Mac ⌘R).
 
 ### Mit Onigiri
 
