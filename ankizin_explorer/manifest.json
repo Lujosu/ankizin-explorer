@@ -1,0 +1,7 @@
+{
+    "package": "ankizin_explorer",
+    "name": "AnKIzin Explorer",
+    "human_version": "1.0.0",
+    "min_point_version": 250200,
+    "conflicts": []
+}
