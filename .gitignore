@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+dist/
+meta.json
+ankizin_explorer/user_files/
+CLAUDE.local.md
+.DS_Store
+.venv/
