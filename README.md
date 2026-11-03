@@ -37,7 +37,9 @@ Aktivieren oder Aussetzen – statt sich durch den Tag-Explorer zu klicken.
 
 ## Installation
 
-- **AnkiWeb:** Code folgt, sobald das Add-on dort veröffentlicht ist.
+- **AnkiWeb (empfohlen):** In Anki *Extras → Add-ons → Add-ons herunterladen* und den Code
+  `1004475016` eingeben, dann Anki neu starten. Seite:
+  [ankiweb.net/shared/info/1004475016](https://ankiweb.net/shared/info/1004475016)
 - **Datei:** `ankizin_explorer.ankiaddon` aus den
   [Releases](https://github.com/Lujosu/ankizin-explorer/releases) herunterladen und
   doppelklicken (oder in Anki *Extras → Add-ons → Aus Datei installieren*). Danach Anki neu
