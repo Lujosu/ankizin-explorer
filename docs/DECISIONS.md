@@ -134,3 +134,10 @@ Jeweils: Entscheidung – Begründung. Abweichungen von der SPEC sind als **Abwe
 32. **Statuszeile im Kopf kurz:** „102 von 148 Karten aktiv“, bei eingeschaltetem Knoten mit
     Nachzüglern „ · 12 neue ausgesetzt“. Die ausführliche Form („teilweise aktiv (69 %) ·
     102 aktiv, 46 ausgesetzt · …“) steht im Tooltip und in den Baum-Tooltips.
+
+## Lizenz
+
+33. **AGPL-3.0 statt gemeinfrei (The Unlicense).** Der Owner möchte kein geschlossenes
+    Bezahlprodukt aus dem Addon ermöglichen; die AGB von AnkiWeb verlangen für Add-ons eine
+    AGPL-3-kompatible Lizenz. Eine reine Nicht-kommerziell-Lizenz ginge damit nicht, die
+    AGPL-3.0 ist die nächstliegende Variante: Weitergaben und Änderungen bleiben offen.

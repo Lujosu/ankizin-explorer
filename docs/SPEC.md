@@ -157,7 +157,7 @@ Darstellung: kleiner **Ring mit 3 Farben** pro Zeile/Kachel, daneben „gesehen/
 
 ## 9. Veröffentlichung
 
-- Öffentliches GitHub-Repo, gemeinfrei (The Unlicense) auf Wunsch des Owners.
+- Öffentliches GitHub-Repo, AGPL-3.0 (Vorgabe von AnkiWeb für Add-ons).
 - Build-Skript erzeugt `dist/ankizin_explorer.ankiaddon` (Zip des Pakets ohne
   `__pycache__`, ohne `meta.json`).
 - Upload auf AnkiWeb macht der Owner manuell.

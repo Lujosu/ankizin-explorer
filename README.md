@@ -78,5 +78,6 @@ Einstellungen aktiviert werden:
 
 ## Lizenz
 
-Gemeinfrei ([The Unlicense](LICENSE)): Jede und jeder darf den Code ohne Bedingungen nutzen,
-verändern, weitergeben und verkaufen – auch ohne Namensnennung.
+[GNU AGPL-3.0](LICENSE): Der Code darf frei genutzt, verändert und weitergegeben werden;
+Weitergaben und Änderungen müssen ebenfalls offen unter der AGPL-3.0 stehen. AnkiWeb setzt
+für Add-ons eine AGPL-3.0-kompatible Lizenz voraus.
