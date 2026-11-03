@@ -31,7 +31,7 @@ from aqt.qt import (
 
 from .. import logic
 from ..model import Counts
-from ..text import active_text, counts_tooltip, fmt_int, learned_text, state_label
+from ..text import active_text, counts_tooltip, fmt_int, learned_text, state_label, tip_html
 from .theme import Palette
 
 ROLE_COUNTS = Qt.ItemDataRole.UserRole + 1
@@ -234,14 +234,16 @@ class ElidedLabel(QLabel):
         super().__init__(parent)
         self._full = text
         self._lines = lines
-        self.setToolTip(text)
+        # Namen aus der Sammlung nie als HTML deuten
+        self.setTextFormat(Qt.TextFormat.PlainText)
+        self.setToolTip(tip_html(text))
         self._fix_height()
         self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
         self.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
 
     def setText(self, text: str) -> None:  # noqa: N802
         self._full = text
-        self.setToolTip(text)
+        self.setToolTip(tip_html(text))
         self._relayout()
 
     def changeEvent(self, event) -> None:  # noqa: N802
@@ -288,7 +290,7 @@ class CrumbLabel(QLabel):
 
     def set_parts(self, parts: List[str]) -> None:
         self._parts = list(parts)
-        self.setToolTip(" › ".join(parts))
+        self.setToolTip(tip_html(" › ".join(parts)))
         self._relayout()
 
     def resizeEvent(self, event) -> None:  # noqa: N802
@@ -345,11 +347,15 @@ def wrap_elide(text: str, fm, width: int, max_lines: int) -> List[str]:
             i += 1
             continue
         if not cur:
-            # Wort passt allein nicht in die Zeile: so viele Zeichen wie passen
+            # Wort passt allein nicht in die Zeile: so viele Zeichen wie passen, im Wort mit
+            # Trennstrich. In die nächste Zeile kommen mindestens drei Buchstaben, sonst
+            # stünde z. B. nur die schließende Klammer von „(fächerübergreifend)“ vorn.
             n = max(1, len(tok) - 1)
-            while n > 1 and fm.horizontalAdvance(tok[:n]) > width:
+            while n > 1 and (
+                fm.horizontalAdvance(_split_word(tok, n)) > width or sum(ch.isalnum() for ch in tok[n:]) < 3
+            ):
                 n -= 1
-            cur, tokens[i] = tok[:n], tok[n:]
+            cur, tokens[i] = _split_word(tok, n), tok[n:]
         lines.append(cur.rstrip())
         cur = ""
         if len(lines) == max_lines:
@@ -360,6 +366,14 @@ def wrap_elide(text: str, fm, width: int, max_lines: int) -> List[str]:
         rest = lines[-1] + " " + "".join(tokens[i:])
         lines[-1] = fm.elidedText(rest.strip(), Qt.TextElideMode.ElideRight, width)
     return lines
+
+
+def _split_word(tok: str, n: int) -> str:
+    """Erste n Zeichen eines zu langen Worts, mit „-“, wenn mitten zwischen Buchstaben."""
+    head = tok[:n]
+    if n < len(tok) and head[-1:].isalnum() and tok[n].isalnum():
+        head += "-"
+    return head
 
 
 def toggle_text(counts: Counts) -> str:

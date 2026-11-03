@@ -113,7 +113,7 @@ Jeweils: Entscheidung – Begründung. Abweichungen von der SPEC sind als **Abwe
 26. **Kopf mit fester Höhe:** Pfad einzeilig, mittlere Teile fallen bei Platzmangel zu „…“
     weg (voller Pfad im Tooltip); Titel höchstens zwei Zeilen.
 27. **Baum:** linker Bereich mindestens 280 px, Splitter nicht zuklappbar, Lernstand-Spalte
-    aus der Schriftbreite berechnet, Zahl wird notfalls gekürzt. Startfokus auf dem Baum,
+    aus der Schriftbreite berechnet, Zahl wird notfalls gekürzt. Startfokus (seit 34) im Suchfeld,
     der Banner-Knopf („Nachzügler aktivieren“) bekommt nur per Tab den Fokus.
 28. **Begriffe:** Gesamtfortschritt heißt „gelernt“ (= gesehen + gefestigt), „gesehen“ nur noch
     für die Stufe < 21 Tage. Kopf: „54 von 148 gelernt“, darunter eine Legende in den
@@ -141,3 +141,27 @@ Jeweils: Entscheidung – Begründung. Abweichungen von der SPEC sind als **Abwe
     Bezahlprodukt aus dem Addon ermöglichen; die AGB von AnkiWeb verlangen für Add-ons eine
     AGPL-3-kompatible Lizenz. Eine reine Nicht-kommerziell-Lizenz ginge damit nicht, die
     AGPL-3.0 ist die nächstliegende Variante: Weitergaben und Änderungen bleiben offen.
+
+## Sicherheit (Audit vor dem Release)
+
+34. **`pycmd` nur aus vertrauenswürdigen Webviews.** Der Befehl zum Öffnen wird ignoriert,
+    wenn er aus Reviewer, Vorschau, Kartenvorlagen-Editor, Deck-Übersicht oder Editor kommt
+    – dort laufen HTML/JS aus geteilten Decks. Sperrliste statt Positivliste, weil offen ist,
+    welchen Kontext Onigiris Seitenleiste übergibt; fehlt eine Klasse in einer Anki-Version,
+    entfällt sie still. Beim Öffnen liegt der Fokus im Suchfeld, nicht im Baum. Die
+    Leertaste schaltet im Baum weiter die Checkbox der gewählten Zeile (Tastaturbedienung);
+    das ist gewollt, weil der Fokus dafür erst bewusst in den Baum gesetzt werden muss und
+    ein unerwartet geöffnetes Fenster eine Leertaste nur als Suchtext bekommt.
+35. **Namen aus der Sammlung nie als Rich Text.** Titel-Labels sind `PlainText`; Tooltips
+    mit Tag-/Decknamen laufen über `text.tip_html` (HTML-escaped, Umbrüche bleiben). Pfad-Links
+    waren schon escaped, Ladefehler werden escaped. Im Undo-Label werden `<`, `>`, `&` durch
+    ‹ › ＆ ersetzt (Anki zeigt es auch als HTML-Tooltip, Menüs deuten `&` als Kürzel).
+36. **Rückmeldungen nach dem Schließen** (Profilwechsel) werden ignoriert (`_closed` bzw.
+    gelöschtes Qt-Objekt); `_loading` wird in `_on_loaded` immer zurückgesetzt, auch bei
+    einem Fehler. Scheitert ein Schaltvorgang nach dem Schließen, erscheint die Meldung am
+    Hauptfenster.
+37. **Konfiguration typgeprüft:** Bekannte Schlüssel werden nur mit dem Typ des Standardwerts
+    übernommen (`"false"` ist kein `true`), sonst gilt der Standard.
+38. **Paket enthält `LICENSE`** (AGPL-3.0 verlangt den Lizenztext bei der Weitergabe).
+39. **Zu lange Wörter** werden im Wort mit „-“ getrennt, und in die nächste Zeile kommen
+    mindestens drei Buchstaben – vorher stand bei „(fächerübergreifend)“ nur „)“ vorn.

@@ -85,3 +85,12 @@ def test_tooltip_mentions_all_numbers():
     tip = text.counts_tooltip(v.root.counts)
     for word in ("Gelernt", "Neu", "Gesehen", "Gefestigt", "Aktiv", "Ausgesetzt"):
         assert word in tip
+
+
+def test_tip_html_and_undo_name_escape_names():
+    tip = text.tip_html("<b>FETT</b>\n<img src=x> & Co")
+    assert "<b>" not in tip and "<img" not in tip
+    assert "&lt;b&gt;FETT&lt;/b&gt;" in tip and "&amp; Co" in tip
+    assert tip.startswith("<p style='white-space:pre-wrap'>") and "\n" in tip
+    assert text.tip_html("") == ""
+    assert text.undo_name("02-Typhi & Paratyphi <img>") == "02-Typhi ＆ Paratyphi ‹img›"

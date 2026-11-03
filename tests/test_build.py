@@ -191,3 +191,23 @@ def test_deck_vorklinik_grouping():
     vk = [c for c in view.root.children if c.name == "Vorklinik"][0]
     assert vk.children[0].name == "Anatomie"
     assert list(vk.children[0].children[0].cards) == ids["vk"]
+
+
+def test_ankiaddon_contains_license(tmp_path, monkeypatch):
+    import importlib.util
+    import zipfile
+    from pathlib import Path
+
+    script = Path(__file__).resolve().parents[1] / "scripts" / "build.py"
+    spec = importlib.util.spec_from_file_location("build_script", script)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    monkeypatch.setattr(mod, "DIST", tmp_path)
+    monkeypatch.setattr(mod, "OUT", tmp_path / "x.ankiaddon")
+    monkeypatch.setattr(mod, "ROOT", tmp_path.parent)
+    assert mod.main() == 0
+    names = zipfile.ZipFile(tmp_path / "x.ankiaddon").namelist()
+    assert "LICENSE" in names and "__init__.py" in names and "manifest.json" in names
+    assert "meta.json" not in names and not any("__pycache__" in n for n in names)
+    lic = zipfile.ZipFile(tmp_path / "x.ankiaddon").read("LICENSE").decode()
+    assert "GNU AFFERO GENERAL PUBLIC LICENSE" in lic

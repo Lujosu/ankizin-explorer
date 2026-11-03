@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 from typing import Dict, List, Optional, Set, Tuple
 
 from aqt import mw
@@ -29,6 +30,7 @@ from aqt.qt import (
     QVBoxLayout,
     QWidget,
     Qt,
+    sip,
 )
 from aqt.utils import askUser, restoreGeom, restoreSplitter, saveGeom, saveSplitter, tooltip
 
@@ -43,6 +45,8 @@ from ..text import (
     fmt_int,
     karten,
     sorted_children,
+    tip_html,
+    undo_name,
 )
 from .theme import Palette
 from .widgets import (
@@ -105,6 +109,8 @@ class ExplorerWindow(QWidget):
         self._pending: Optional[str] = None  # "full" | "codes"
         self._show_vorklinik = config.show_vorklinik()
         self._loaded_vorklinik: Optional[bool] = None
+        # Nach dem Schließen (Profilwechsel) eintreffende Rückmeldungen ignorieren
+        self._closed = False
 
         self._build_ui()
         self.apply_theme()
@@ -114,7 +120,7 @@ class ExplorerWindow(QWidget):
             self.resize(1100, 720)
             restoreGeom(self, GEOM_KEY)
         restoreSplitter(self.splitter, GEOM_KEY)
-        self.tree.setFocus()
+        self.focus_search()
         self.reload("full")
 
     # --- Aufbau ----------------------------------------------------------------
@@ -309,6 +315,11 @@ class ExplorerWindow(QWidget):
         self.tiles_layout.setContentsMargins(0, 0, 0, 0)
         self.tiles_area.setWidget(inner)
 
+    def focus_search(self) -> None:
+        # Startfokus im Suchfeld statt im Baum: Öffnet sich das Fenster unerwartet, landet
+        # eine Leertaste als Suchtext und schaltet nicht die Checkbox der gewählten Zeile
+        self.search.setFocus()
+
     def apply_theme(self) -> None:
         self.pal = Palette()
         # Nicht aufs ganze Fenster setzen: Ein Stylesheet auf einem Vorfahren schickt auch
@@ -358,17 +369,30 @@ class ExplorerWindow(QWidget):
         if pending:
             self.reload(pending)
 
+    def _gone(self) -> bool:
+        """Fenster schon geschlossen/gelöscht – dann keine Rückmeldungen mehr anwenden."""
+        return self._closed or sip.isdeleted(self)
+
     def _on_loaded(self, snap: Snapshot, show_vk: Optional[bool]) -> None:
-        self._remember_state()
-        self.snapshot = snap
-        self._loaded_vorklinik = show_vk
-        self._refresh()
-        self._finish_loading()
+        if self._gone():
+            return
+        try:
+            self._remember_state()
+            self.snapshot = snap
+            self._loaded_vorklinik = show_vk
+            self._refresh()
+        finally:
+            # Auch bei einem Fehler beim Anzeigen darf `_loading` nicht hängen bleiben
+            self._finish_loading()
 
     def _on_load_failed(self, err: Exception) -> None:
-        self.message.setText(f"Fehler beim Laden: {err}")
-        self.pages.setCurrentIndex(0)
-        self._finish_loading()
+        if self._gone():
+            return
+        try:
+            self.message.setText(f"Fehler beim Laden: {html.escape(str(err))}")
+            self.pages.setCurrentIndex(0)
+        finally:
+            self._finish_loading()
 
     def on_collection_changed(self, changes) -> None:
         """Aus gui_hooks.operation_did_execute (auch Undo im Hauptfenster)."""
@@ -433,7 +457,7 @@ class ExplorerWindow(QWidget):
         if force or item.checkState(0) != check:
             item.setCheckState(0, check)
         item.setData(1, ROLE_COUNTS, list(c.by_code))
-        tip = f"{node.name}\n{status_detail(c)}\n\n{counts_tooltip(c)}"
+        tip = tip_html(f"{node.name}\n{status_detail(c)}\n\n{counts_tooltip(c)}")
         item.setToolTip(0, tip)
         item.setToolTip(1, tip)
 
@@ -674,7 +698,7 @@ class ExplorerWindow(QWidget):
     def toggle(self, node: Optional[Node], enable: Optional[bool] = None) -> None:
         """Schalten; ohne `enable` entscheidet der Zustand (☑ → aus, sonst an)."""
         view = self.current_view()
-        if node is None or view is None:
+        if node is None or view is None or self._gone():
             return
         if self._loading or self._op_running:
             tooltip("Einen Moment, die Zahlen werden gerade aktualisiert …", parent=self)
@@ -700,16 +724,18 @@ class ExplorerWindow(QWidget):
         if logic.needs_confirmation(plan) and not self._confirm(plan):
             return
         if plan.enable:
-            undo_label = f"AnKIzin: „{name}“ aktivieren"
+            undo_label = f"AnKIzin: „{undo_name(name)}“ aktivieren"
             done = f"{karten(plan.count)} aktiviert."
         else:
-            undo_label = f"AnKIzin: „{name}“ aussetzen"
+            undo_label = f"AnKIzin: „{undo_name(name)}“ aussetzen"
             done = f"{karten(plan.count)} ausgesetzt."
             if plan.kept:
                 done += f" {fmt_int(plan.kept)} bleiben aktiv (in anderen aktiven Themen)."
         self._op_running = True
 
         def finished(ok: bool) -> None:
+            if self._gone():
+                return
             self._op_running = False
             if ok:
                 tooltip(done, parent=self)

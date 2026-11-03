@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 import re
 from typing import Callable, List, Sequence
 
@@ -20,6 +21,21 @@ def display_name(segment: str) -> str:
 def fmt_int(n: int) -> str:
     """Deutsche Tausenderpunkte: 2340 -> „2.340“."""
     return f"{n:,}".replace(",", ".")
+
+
+def tip_html(text: str) -> str:
+    """Tooltip-Text mit Namen aus der Sammlung: nie als HTML deuten, Umbrüche behalten.
+
+    Qt erkennt Rich Text in Tooltips selbst; ein Tag wie `<img src=…>` würde sonst
+    gerendert.
+    """
+    return f"<p style='white-space:pre-wrap'>{html.escape(text)}</p>" if text else ""
+
+
+def undo_name(name: str) -> str:
+    """Name für Undo-Label und Menüs: <, > und & entschärfen (Anki zeigt das Label auch
+    als HTML-Tooltip, Qt-Menüs deuten & als Kürzel)."""
+    return name.replace("&", "＆").replace("<", "‹").replace(">", "›")
 
 
 def karten(n: int) -> str:

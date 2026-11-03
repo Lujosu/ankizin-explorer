@@ -380,7 +380,7 @@ def _tile(w, name):
 
     for i in range(w.tiles_layout.count()):
         tile = w.tiles_layout.itemAt(i).widget()
-        if isinstance(tile, Tile) and tile.findChild(type(w.title)).toolTip() == name:
+        if isinstance(tile, Tile) and tile.findChild(type(w.title))._full == name:
             return tile
     raise KeyError(name)
 
@@ -531,3 +531,131 @@ def test_legend_follows_theme(window, monkeypatch):
     w.apply_theme()
     assert w.pal.dark and w.pal.new.name() != light
     assert w.pal.new.name() in w.legend.text() and light not in w.legend.text()
+
+
+# --- Sicherheit -------------------------------------------------------------------------
+
+
+def test_js_command_ignored_from_card_webviews(monkeypatch):
+    from ankizin_explorer import integration
+
+    blocked = integration._blocked_contexts()
+    names = {cls.__name__ for cls in blocked}
+    assert {"Reviewer", "Previewer", "CardLayout", "Overview", "Editor"} <= names
+
+    opened = []
+    monkeypatch.setattr(integration, "open_window", lambda: opened.append(1))
+    Reviewer = next(cls for cls in blocked if cls.__name__ == "Reviewer")
+    fake_reviewer = Reviewer.__new__(Reviewer)
+    assert integration._on_js_message((False, None), integration.COMMAND, fake_reviewer) == (False, None)
+    assert not opened
+    # Andere Kontexte (Deckliste, Toolbar, Onigiris Seitenleiste) öffnen weiter
+    assert integration._on_js_message((False, None), integration.COMMAND, object()) == (True, None)
+    assert integration._on_js_message((False, None), integration.COMMAND, None) == (True, None)
+    assert opened == [1, 1]
+
+
+def test_start_focus_in_search_and_space_switches_nothing(window):
+    qt = pytest.importorskip("aqt.qt")
+    qtest = pytest.importorskip("PyQt6.QtTest")
+    w = window
+    assert w.focusWidget() is w.search
+    qtest.QTest.keyClick(w.focusWidget(), qt.Qt.Key.Key_Space)
+    w._apply_search()
+    qt.QApplication.processEvents()
+    assert w.current_view().root.counts.active == 0
+    assert not w._tips and w.tree.topLevelItem(0).checkState(0) == qt.Qt.CheckState.Unchecked
+
+
+def test_names_are_never_rich_text(window, col):
+    qt = pytest.importorskip("aqt.qt")
+    from .fixtures import KLINIK
+
+    w = window
+    basic = col.models.by_name("Basic")
+    note = col.new_note(basic)
+    note["Front"] = "html"
+    note.tags = [f"{KLINIK}::<b>FETT</b>::<img_src=x>"]
+    col.add_note(note, col.decks.id("Ankizin::M2_M3_Klinik::Innere_Medizin"))
+    w.reload("full")
+    fett = next(k for k in w.items if k and w._node(k).name == "<b>FETT</b>")
+    img = next(k for k in w.items if k and w._node(k).name == "<img src=x>")
+
+    tip = w.items[img].toolTip(0)
+    assert "<img" not in tip and "&lt;img src=x&gt;" in tip
+    w.navigate(fett)
+    assert w.title.textFormat() == qt.Qt.TextFormat.PlainText
+    assert w.title.text() == "<b>FETT</b>" and "<b>" not in w.title.toolTip()
+    tile = _tile(w, "<img src=x>")
+    title = tile.findChild(type(w.title))
+    assert title.textFormat() == qt.Qt.TextFormat.PlainText and "<img" not in title.toolTip()
+    w.navigate(img)
+    assert "&lt;b&gt;FETT" in w.crumbs.toolTip() and "<b>" not in w.crumbs.toolTip()
+    assert "<b>" not in w.crumbs.text()
+
+    w.toggle(w.current_node())
+    label = col.undo_status().undo
+    assert label == "AnKIzin: „‹img src=x›“ aussetzen"  # neue Notiz ist aktiv
+
+
+def test_callbacks_after_close_are_ignored(window, monkeypatch):
+    from ankizin_explorer import integration
+
+    w = window
+    snap = w.snapshot
+    monkeypatch.setattr(integration, "_window", w)
+    monkeypatch.setattr(w, "deleteLater", lambda: None)
+    integration._close_window()
+    assert w._closed and integration._window is None
+    w._on_loaded(None, False)  # würde ohne Sperre an None scheitern
+    w._on_load_failed(RuntimeError("x"))
+    assert w.snapshot is snap
+    w.toggle(w.current_node())
+    assert w.current_view().root.counts.active == 0
+
+
+def test_loading_flag_released_on_error(window, monkeypatch):
+    w = window
+    w._loading = True
+
+    def boom():
+        raise RuntimeError("kaputt")
+
+    monkeypatch.setattr(w, "_refresh", boom)
+    with pytest.raises(RuntimeError):
+        w._on_loaded(w.snapshot, False)
+    assert not w._loading and w.reload_action.isEnabled()
+
+
+def test_wrap_elide_keeps_closing_bracket_with_word():
+    qt = pytest.importorskip("aqt.qt")
+    app = qt.QApplication.instance() or qt.QApplication([])  # noqa: F841 - muss leben
+    from ankizin_explorer.ui.widgets import wrap_elide
+
+    font = qt.QFont()
+    font.setBold(True)
+    fm = qt.QFontMetrics(font)
+    text = "(fächerübergreifend) Autoimmun- und allergische Erkrankungen"
+    full = fm.horizontalAdvance("(fächerübergreifend)")
+    for width in range(full - 6, full):
+        lines = wrap_elide(text, fm, width, 2)
+        assert not lines[1].startswith(")"), (width, lines)
+        assert sum(ch.isalnum() for ch in lines[1].split(")")[0]) >= 3, (width, lines)
+        assert lines[0].endswith("-") and fm.horizontalAdvance(lines[0]) <= width
+    assert wrap_elide(text, fm, full + 1, 2)[0] == "(fächerübergreifend)"
+
+
+def test_config_accepts_only_matching_types(monkeypatch):
+    from ankizin_explorer import config
+
+    stored = {"vorklinik_anzeigen": "false", "an_gewinnt": 1, "knopf_startseite": "nein",
+              "tastenkuerzel": 5, "fremd": "bleibt"}
+    monkeypatch.setattr(config, "_manager", lambda: types.SimpleNamespace(getConfig=lambda name: stored))
+    assert config.show_vorklinik() is False
+    assert config.on_wins() is False
+    assert config.home_button() is True
+    assert config.shortcut() == "Ctrl+Alt+A"
+    assert config.get()["fremd"] == "bleibt"
+    stored.update({"vorklinik_anzeigen": True, "an_gewinnt": True, "knopf_startseite": False, "tastenkuerzel": ""})
+    assert config.show_vorklinik() and config.on_wins() and not config.home_button()
+    assert config.shortcut() == ""

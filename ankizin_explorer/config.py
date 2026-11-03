@@ -25,13 +25,20 @@ def _manager():
 
 
 def get() -> Dict[str, Any]:
+    """Konfiguration mit Standardwerten. Bekannte Schlüssel nur mit dem richtigen Typ
+    übernehmen (z. B. kein `"false"` als wahr deuten), sonst gilt der Standard."""
     conf = dict(DEFAULTS)
     mgr = _manager()
     if mgr is not None:
         try:
-            conf.update(mgr.getConfig(ADDON) or {})
+            user = mgr.getConfig(ADDON) or {}
         except Exception:
-            pass
+            user = {}
+        if isinstance(user, dict):
+            for key, value in user.items():
+                default = DEFAULTS.get(key)
+                if default is None or isinstance(value, type(default)):
+                    conf[key] = value
     return conf
 
 

@@ -28,6 +28,19 @@ ICON_SVG = (
 _window = None
 _last_open = 0.0
 _onigiri_done = False
+_blocked: Optional[tuple] = None
+
+# Webviews, die Karten- oder Deckinhalte (HTML/JS aus geteilten Decks) anzeigen. Von dort
+# wird `pycmd(COMMAND)` ignoriert: Eine Kartenvorlage könnte das Fenster sonst z. B. im
+# Reviewer ständig öffnen. Sperrliste statt Positivliste, weil nicht feststeht, welchen
+# Kontext Onigiris Seitenleiste übergibt.
+BLOCKED_CONTEXTS = (
+    ("aqt.reviewer", "Reviewer"),
+    ("aqt.browser.previewer", "Previewer"),
+    ("aqt.clayout", "CardLayout"),
+    ("aqt.overview", "Overview"),
+    ("aqt.editor", "Editor"),
+)
 
 
 def open_window() -> None:
@@ -48,11 +61,14 @@ def open_window() -> None:
     _window.show()
     _window.raise_()
     _window.activateWindow()
+    _window.focus_search()
 
 
 def _close_window() -> None:
     global _window
     if _window is not None:
+        # Danach eintreffende Lade-/Schalt-Rückmeldungen ignoriert das Fenster
+        _window._closed = True
         _window.close()
         _window.deleteLater()
         _window = None
@@ -92,12 +108,29 @@ def _toolbar_links(links, toolbar) -> None:
     )
 
 
-def _on_js_message(handled, message, _context):
+def _blocked_contexts() -> tuple:
+    """Klassen aus BLOCKED_CONTEXTS; fehlt ein Modul in einer Anki-Version, entfällt es."""
+    global _blocked
+    if _blocked is None:
+        found = []
+        for module, name in BLOCKED_CONTEXTS:
+            try:
+                found.append(getattr(importlib.import_module(module), name))
+            except Exception:
+                pass
+        _blocked = tuple(found)
+    return _blocked
+
+
+def _on_js_message(handled, message, context):
     # Onigiri-Seitenleiste (pycmd). Hat ein anderer Hook (z. B. Onigiris
     # Toolbar-Weiterleitung) den Befehl schon erledigt, nicht doppelt öffnen.
     if message != COMMAND:
         return handled
     if handled[0]:
+        return handled
+    blocked = _blocked_contexts()
+    if blocked and isinstance(context, blocked):
         return handled
     open_window()
     return (True, None)

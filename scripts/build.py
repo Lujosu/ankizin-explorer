@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Erzeugt dist/ankizin_explorer.ankiaddon (Zip des Pakets, ohne __pycache__/meta.json)."""
+"""Erzeugt dist/ankizin_explorer.ankiaddon (Zip des Pakets ohne __pycache__/meta.json, plus LICENSE)."""
 
 from __future__ import annotations
 
@@ -12,6 +12,8 @@ ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "ankizin_explorer"
 DIST = ROOT / "dist"
 OUT = DIST / "ankizin_explorer.ankiaddon"
+# Aus dem Repo-Wurzelverzeichnis zusätzlich ins Paket (AGPL: Lizenztext mitliefern)
+EXTRA = [ROOT / "LICENSE"]
 
 EXCLUDE_DIRS = {"__pycache__", "user_files", ".pytest_cache"}
 EXCLUDE_FILES = {"meta.json", ".DS_Store"}
@@ -36,6 +38,9 @@ def main() -> int:
     with zipfile.ZipFile(OUT, "w", zipfile.ZIP_DEFLATED) as zf:
         for path, rel in files():
             zf.write(path, rel.as_posix())
+            count += 1
+        for path in EXTRA:
+            zf.write(path, path.name)
             count += 1
     print(f"{OUT.relative_to(ROOT)}: {count} Dateien, {OUT.stat().st_size / 1024:.1f} KB")
     return 0

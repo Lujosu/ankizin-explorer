@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Callable, List, Optional
 
 from aqt.operations import CollectionOp, QueryOp
-from aqt.qt import QWidget
+from aqt.qt import QWidget, sip
 
 from . import loader
 from .model import Snapshot
@@ -30,11 +30,14 @@ def set_suspended(
         return col.merge_undo_entries(pos)
 
     def failed(err: Exception) -> None:
+        from aqt import mw
         from aqt.utils import showWarning
 
         if on_done is not None:
             on_done(False)
-        showWarning(f"AnKIzin Explorer: Schalten fehlgeschlagen.\n\n{err}", parent=parent)
+        # Ist das Fenster inzwischen geschlossen, die Meldung am Hauptfenster zeigen
+        owner = mw if sip.isdeleted(parent) else parent
+        showWarning(f"AnKIzin Explorer: Schalten fehlgeschlagen.\n\n{err}", parent=owner)
 
     cop = CollectionOp(parent=parent, op=op).failure(failed)
     if on_done is not None:
