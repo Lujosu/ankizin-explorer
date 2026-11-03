@@ -7,3 +7,15 @@ ankizin_explorer/user_files/
 CLAUDE.local.md
 .DS_Store
 .venv/
+# Anki-Sammlungen, Exporte und Pakete (können private Lerndaten enthalten)
+*.apkg
+*.colpkg
+*.anki2
+*.ankiaddon
+# Lokale Notizen, Umgebung, Logs, Editor-Einstellungen
+*.local.md
+.env
+*.log
+.claude/settings.local.json
+.idea/
+.vscode/
