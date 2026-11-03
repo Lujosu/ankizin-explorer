@@ -12,6 +12,38 @@ Aktivieren oder Aussetzen – statt sich durch den Tag-Explorer zu klicken.
 > Status: v1. Design siehe [docs/SPEC.md](docs/SPEC.md), Umsetzungsentscheidungen in
 > [docs/DECISIONS.md](docs/DECISIONS.md).
 
+## So sieht es aus
+
+![Übersicht: Themenbaum links, Kacheln der Fächer rechts](docs/screenshots/01-uebersicht.jpg)
+
+<table>
+<tr>
+<td><img src="docs/screenshots/02-fach.jpg" alt="Ein Fach im Detail mit seinen Unterthemen"></td>
+<td><img src="docs/screenshots/03-suche.jpg" alt="Suche: ein Artikel erscheint an allen Stellen, an denen er hängt"></td>
+</tr>
+<tr>
+<td align="center">Ein Fach mit allen Unterthemen</td>
+<td align="center">Suche – Treffer an allen Stellen im Baum</td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/04-decks.jpg" alt="Ansicht nach Deck-Struktur"></td>
+<td><img src="docs/screenshots/05-dunkel-beispieldaten.png" alt="Dunkelmodus mit Beispieldaten"></td>
+</tr>
+<tr>
+<td align="center">Ansicht nach Deck-Struktur</td>
+<td align="center">Dunkelmodus (Beispieldaten)</td>
+</tr>
+</table>
+
+## Installation
+
+- **AnkiWeb:** Code folgt, sobald das Add-on dort veröffentlicht ist.
+- **Datei:** `ankizin_explorer.ankiaddon` aus den
+  [Releases](https://github.com/Lujosu/ankizin-explorer/releases) herunterladen und
+  doppelklicken (oder in Anki *Extras → Add-ons → Aus Datei installieren*). Danach Anki neu
+  starten.
+- Voraussetzung: Anki 25.02 oder neuer und das AnKIzin-Deck (z. B. über AnkiCollab).
+
 ## Funktionen (v1)
 
 - Baum nach AMBOSS-Bibliothek (Standard) oder nach Deck-Struktur
